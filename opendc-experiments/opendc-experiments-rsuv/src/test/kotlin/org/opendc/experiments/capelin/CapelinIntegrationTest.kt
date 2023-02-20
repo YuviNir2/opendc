@@ -32,7 +32,7 @@ import org.opendc.compute.service.scheduler.filters.ComputeFilter
 import org.opendc.compute.service.scheduler.filters.RamFilter
 import org.opendc.compute.service.scheduler.filters.VCpuFilter
 import org.opendc.compute.service.scheduler.weights.CoreRamWeigher
-import org.opendc.experiments.capelin.topology.clusterTopology
+import org.opendc.experiments.rsuv.topology.clusterTopology
 import org.opendc.experiments.compute.ComputeWorkloadLoader
 import org.opendc.experiments.compute.VirtualMachine
 import org.opendc.experiments.compute.grid5000
