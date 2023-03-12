@@ -53,9 +53,9 @@ import java.time.Duration
 import java.util.Random
 
 /**
- * An integration test suite for the Capelin experiments.
+ * An integration test suite for my experiments.
  */
-class CapelinIntegrationTest {
+class MyTest {
     /**
      * The monitor used to keep track of the metrics.
      */
@@ -81,7 +81,7 @@ class CapelinIntegrationTest {
             filters = listOf(ComputeFilter(), VCpuFilter(16.0), RamFilter(1.0)),
             weighers = listOf(CoreRamWeigher(multiplier = 1.0))
         )
-        workloadLoader = ComputeWorkloadLoader(File("src/test/resources/trace"))
+        workloadLoader = ComputeWorkloadLoader(File("src/test/resources/traces"))
     }
 
     /**

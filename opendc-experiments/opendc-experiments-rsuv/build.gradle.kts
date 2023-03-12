@@ -20,7 +20,7 @@
  * SOFTWARE.
  */
 
-description = "Experiments for the rsuv work"
+description = "Experiments for the RSUV work"
 
 /* Build configuration */
 plugins {
@@ -48,39 +48,39 @@ dependencies {
     runtimeOnly(libs.log4j.slf4j)
 }
 
-val createCapelinApp by tasks.creating(CreateStartScripts::class) {
+val createMyApp by tasks.creating(CreateStartScripts::class) {
     dependsOn(tasks.jar)
 
-    applicationName = "capelin"
-    mainClass.set("org.opendc.experiments.rsuv.CapelinCli")
+    applicationName = "rsuv"
+    mainClass.set("org.opendc.experiments.rsuv.MyCli")
     classpath = tasks.jar.get().outputs.files + configurations["runtimeClasspath"]
     outputDir = project.buildDir.resolve("scripts")
 }
 
-/* Create custom Capelin distribution */
-distributions {
-    main {
-        distributionBaseName.set("capelin")
-
-        contents {
-            from("README.md")
-            from("LICENSE.txt")
-            from("../../LICENSE.txt") {
-                rename { "LICENSE-OpenDC.txt" }
-            }
-
-            into("bin") {
-                from(createCapelinApp)
-            }
-
-            into("lib") {
-                from(tasks.jar)
-                from(configurations["runtimeClasspath"])
-            }
-
-            into("input") {
-                from("input")
-            }
-        }
-    }
-}
+///* Create custom rsuv distribution */
+//distributions {
+//    main {
+//        distributionBaseName.set("rsuv")
+//
+//        contents {
+//            from("README.md")
+//            from("LICENSE.txt")
+//            from("../../LICENSE.txt") {
+//                rename { "LICENSE-OpenDC.txt" }
+//            }
+//
+//            into("bin") {
+//                from(createMyApp)
+//            }
+//
+//            into("lib") {
+//                from(tasks.jar)
+//                from(configurations["runtimeClasspath"])
+//            }
+//
+//            into("input") {
+//                from("input")
+//            }
+//        }
+//    }
+//}

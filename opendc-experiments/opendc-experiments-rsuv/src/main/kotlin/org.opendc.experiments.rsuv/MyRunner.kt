@@ -41,13 +41,13 @@ import java.util.Random
 import kotlin.math.roundToLong
 
 /**
- * Helper class for running the Capelin experiments.
+ * Helper class for running My experiments.
  *
  * @param envPath The path to the directory containing the environments.
  * @param tracePath The path to the directory containing the traces.
  * @param outputPath The path to the directory where the output should be written (or `null` if no output should be generated).
  */
-public class CapelinRunner(
+public class MyRunner(
     private val envPath: File,
     tracePath: File,
     private val outputPath: File?

@@ -20,7 +20,7 @@
  * SOFTWARE.
  */
 
-@file:JvmName("CapelinCli")
+@file:JvmName("MyCli")
 
 package org.opendc.experiments.rsuv
 
@@ -51,12 +51,12 @@ import java.util.stream.LongStream
 /**
  * Main entrypoint of the application.
  */
-fun main(args: Array<String>): Unit = CapelinCommand().main(args)
+fun main(args: Array<String>): Unit = MyCommand().main(args)
 
 /**
  * Represents the command for the Capelin experiments.
  */
-internal class CapelinCommand : CliktCommand(name = "capelin") {
+internal class MyCommand : CliktCommand(name = "rsuv") {
     /**
      * The path to the environment directory.
      */
@@ -123,7 +123,7 @@ internal class CapelinCommand : CliktCommand(name = "capelin") {
     private val basePartitions: Map<String, String> by option("-P", "--base-partitions").associate()
 
     override fun run() {
-        val runner = CapelinRunner(envPath, tracePath, outputPath.takeUnless { disableOutput })
+        val runner = MyRunner(envPath, tracePath, outputPath.takeUnless { disableOutput })
         val scenarios = portfolio().scenarios.toList()
 
         val pool = ForkJoinPool(parallelism)
@@ -140,7 +140,7 @@ internal class CapelinCommand : CliktCommand(name = "capelin") {
     /**
      * Run a single scenario.
      */
-    private fun runScenario(runner: CapelinRunner, pool: ForkJoinPool, scenario: Scenario) {
+    private fun runScenario(runner: MyRunner, pool: ForkJoinPool, scenario: Scenario) {
         val pb = ProgressBarBuilder()
             .setInitialMax(repeats.toLong())
             .setStyle(ProgressBarStyle.ASCII)
