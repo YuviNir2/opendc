@@ -135,7 +135,7 @@ class MyTest {
     fun testSmall() = runSimulation {
         val seed = 1L
         val workload = createTestWorkload(0.25, seed)
-        val topology = createTopology("single")
+        val topology = createTopology("topology2")
         val monitor = monitor
 
         Provisioner(dispatcher, seed).use { provisioner ->
@@ -175,7 +175,7 @@ class MyTest {
     fun testInterference() = runSimulation {
         val seed = 0L
         val workload = createTestWorkload(1.0, seed)
-        val topology = createTopology("single")
+        val topology = createTopology()
 
         Provisioner(dispatcher, seed).use { provisioner ->
             provisioner.runSteps(
@@ -202,7 +202,47 @@ class MyTest {
             { assertEquals(6028018, monitor.idleTime) { "Idle time incorrect" } },
             { assertEquals(14712781, monitor.activeTime) { "Active time incorrect" } },
             { assertEquals(12532934, monitor.stealTime) { "Steal time incorrect" } },
-            { assertEquals(424267, monitor.lostTime) { "Lost time incorrect" } }
+            { assertEquals(424267, monitor.lostTime) { "Lost time incorrect" } },
+            { assertEquals(26512.185398076126, monitor.sup) { "CPU Utilization" } }
+        )
+    }
+
+    /**
+     * Test a small simulation setup with interference.
+     */
+    @Test
+    fun testInterference2() = runSimulation {
+        val seed = 0L
+        val workload = createTestWorkload(1.0, seed)
+        val topology = createTopology("topology2")
+
+        Provisioner(dispatcher, seed).use { provisioner ->
+            provisioner.runSteps(
+                setupComputeService(serviceDomain = "compute.opendc.org", { computeScheduler }),
+                registerComputeMonitor(serviceDomain = "compute.opendc.org", monitor),
+                setupHosts(serviceDomain = "compute.opendc.org", topology)
+            )
+
+            val service = provisioner.registry.resolve("compute.opendc.org", ComputeService::class.java)!!
+            service.replay(timeSource, workload, seed, interference = true)
+        }
+
+        println(
+            "Scheduler " +
+                "Success=${monitor.attemptsSuccess} " +
+                "Failure=${monitor.attemptsFailure} " +
+                "Error=${monitor.attemptsError} " +
+                "Pending=${monitor.serversPending} " +
+                "Active=${monitor.serversActive}"
+        )
+
+        // Note that these values have been verified beforehand
+        assertAll(
+            { assertEquals(6028018, monitor.idleTime) { "Idle time incorrect" } },
+            { assertEquals(14712781, monitor.activeTime) { "Active time incorrect" } },
+            { assertEquals(12532934, monitor.stealTime) { "Steal time incorrect" } },
+            { assertEquals(424267, monitor.lostTime) { "Lost time incorrect" } },
+            { assertEquals(26512, monitor.sup) { "CPU Utilization" } }
         )
     }
 
@@ -233,7 +273,8 @@ class MyTest {
             { assertEquals(8539204, monitor.activeTime) { "Active time incorrect" } },
             { assertEquals(0, monitor.stealTime) { "Steal time incorrect" } },
             { assertEquals(0, monitor.lostTime) { "Lost time incorrect" } },
-            { assertEquals(2328039558, monitor.uptime) { "Uptime incorrect" } }
+            { assertEquals(2328039558, monitor.uptime) { "Uptime incorrect" } },
+            { assertEquals(26512, monitor.sup) { "CPU Utilization" } }
         )
     }
 
@@ -274,6 +315,7 @@ class MyTest {
         var lostTime = 0L
         var energyUsage = 0.0
         var uptime = 0L
+        var sup = 0.0
 
         override fun record(reader: HostTableReader) {
             idleTime += reader.cpuIdleTime
@@ -282,6 +324,7 @@ class MyTest {
             lostTime += reader.cpuLostTime
             energyUsage += reader.powerTotal
             uptime += reader.uptime
+            sup += reader.cpuUtilization
         }
     }
 }

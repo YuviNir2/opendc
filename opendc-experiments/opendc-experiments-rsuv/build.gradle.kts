@@ -48,14 +48,14 @@ dependencies {
     runtimeOnly(libs.log4j.slf4j)
 }
 
-val createMyApp by tasks.creating(CreateStartScripts::class) {
-    dependsOn(tasks.jar)
-
-    applicationName = "rsuv"
-    mainClass.set("org.opendc.experiments.rsuv.MyCli")
-    classpath = tasks.jar.get().outputs.files + configurations["runtimeClasspath"]
-    outputDir = project.buildDir.resolve("scripts")
-}
+//val createMyApp by tasks.creating(CreateStartScripts::class) {
+//    dependsOn(tasks.jar)
+//
+//    applicationName = "rsuv"
+//    mainClass.set("org.opendc.experiments.rsuv.MyCli")
+//    classpath = tasks.jar.get().outputs.files + configurations["runtimeClasspath"]
+//    outputDir = project.buildDir.resolve("scripts")
+//}
 
 ///* Create custom rsuv distribution */
 //distributions {
