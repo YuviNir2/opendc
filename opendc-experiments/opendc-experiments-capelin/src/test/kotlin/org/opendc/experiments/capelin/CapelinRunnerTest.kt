@@ -65,7 +65,6 @@ class CapelinRunnerTest {
             assertDoesNotThrow { runner.runScenario(scenario, seed = 0L) }
         } finally {
             outputPath.delete()
-            println("Rich power")
         }
     }
 
