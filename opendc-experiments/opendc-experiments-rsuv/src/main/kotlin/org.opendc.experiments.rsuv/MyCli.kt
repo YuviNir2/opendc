@@ -54,9 +54,9 @@ import java.util.stream.LongStream
 fun main(args: Array<String>): Unit = MyCommand().main(args)
 
 /**
- * Represents the command for the Capelin experiments.
+ * Represents the command for our experiments.
  */
-internal class MyCommand : CliktCommand(name = "rsuv") {
+internal class MyCommand : CliktCommand(name = "test") {
     /**
      * The path to the environment directory.
      */

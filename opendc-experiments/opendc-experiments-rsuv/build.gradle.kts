@@ -56,7 +56,7 @@ dependencies {
 //    classpath = tasks.jar.get().outputs.files + configurations["runtimeClasspath"]
 //    outputDir = project.buildDir.resolve("scripts")
 //}
-
+//
 ///* Create custom rsuv distribution */
 //distributions {
 //    main {
