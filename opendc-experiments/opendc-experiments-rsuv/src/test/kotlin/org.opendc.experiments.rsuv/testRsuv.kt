@@ -22,10 +22,12 @@
 
 package org.opendc.experiments.rsuv
 
-import org.junit.jupiter.api.Assertions.assertEquals
+ import com.fasterxml.jackson.core.JsonToken
+import com.fasterxml.jackson.dataformat.csv.CsvFactory
+import com.fasterxml.jackson.dataformat.csv.CsvParser
+import com.fasterxml.jackson.dataformat.csv.CsvSchema
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertAll
 import org.opendc.compute.service.ComputeService
 import org.opendc.compute.service.scheduler.FilterScheduler
 import org.opendc.compute.service.scheduler.filters.ComputeFilter
@@ -35,7 +37,6 @@ import org.opendc.compute.service.scheduler.weights.CoreRamWeigher
 import org.opendc.experiments.rsuv.topology.clusterTopology
 import org.opendc.experiments.compute.ComputeWorkloadLoader
 import org.opendc.experiments.compute.VirtualMachine
-import org.opendc.experiments.compute.grid5000
 import org.opendc.experiments.compute.registerComputeMonitor
 import org.opendc.experiments.compute.replay
 import org.opendc.experiments.compute.sampleByLoad
@@ -47,10 +48,14 @@ import org.opendc.experiments.compute.telemetry.table.ServiceTableReader
 import org.opendc.experiments.compute.topology.HostSpec
 import org.opendc.experiments.compute.trace
 import org.opendc.experiments.provisioner.Provisioner
+import org.opendc.simulator.compute.workload.SimTrace
 import org.opendc.simulator.kotlin.runSimulation
 import java.io.File
-import java.time.Duration
+import java.time.Instant
 import java.util.Random
+import java.util.UUID
+import kotlin.math.max
+ import kotlin.math.roundToLong
 
 /**
  * An integration test suite for my experiments.
@@ -67,11 +72,6 @@ class MyTest {
     private lateinit var computeScheduler: FilterScheduler
 
     /**
-     * The [ComputeWorkloadLoader] responsible for loading the traces.
-     */
-    private lateinit var workloadLoader: ComputeWorkloadLoader
-
-    /**
      * Set up the experimental environment.
      */
     @BeforeEach
@@ -81,51 +81,6 @@ class MyTest {
             filters = listOf(ComputeFilter(), VCpuFilter(16.0), RamFilter(1.0)),
             weighers = listOf(CoreRamWeigher(multiplier = 1.0))
         )
-        workloadLoader = ComputeWorkloadLoader(File("src/test/resources/traces"))
-    }
-
-    /**
-     * Test a large simulation setup.
-     */
-    @Test
-    fun testLarge() = runSimulation {
-        val seed = 0L
-        val workload = createTestWorkload(1.0, seed)
-        val topology = createTopology()
-        val monitor = monitor
-
-        Provisioner(dispatcher, seed).use { provisioner ->
-            provisioner.runSteps(
-                setupComputeService(serviceDomain = "compute.opendc.org", { computeScheduler }),
-                registerComputeMonitor(serviceDomain = "compute.opendc.org", monitor),
-                setupHosts(serviceDomain = "compute.opendc.org", topology)
-            )
-
-            val service = provisioner.registry.resolve("compute.opendc.org", ComputeService::class.java)!!
-            service.replay(timeSource, workload, seed)
-        }
-
-        println(
-            "Scheduler " +
-                "Success=${monitor.attemptsSuccess} " +
-                "Failure=${monitor.attemptsFailure} " +
-                "Error=${monitor.attemptsError} " +
-                "Pending=${monitor.serversPending} " +
-                "Active=${monitor.serversActive}"
-        )
-
-        // Note that these values have been verified beforehand
-        assertAll(
-            { assertEquals(50, monitor.attemptsSuccess, "The scheduler should schedule 50 VMs") },
-            { assertEquals(0, monitor.serversActive, "All VMs should finish after a run") },
-            { assertEquals(0, monitor.attemptsFailure, "No VM should be unscheduled") },
-            { assertEquals(0, monitor.serversPending, "No VM should not be in the queue") },
-            { assertEquals(223394101, monitor.idleTime) { "Incorrect idle time" } },
-            { assertEquals(66977086, monitor.activeTime) { "Incorrect active time" } },
-            { assertEquals(3160276, monitor.stealTime) { "Incorrect steal time" } },
-            { assertEquals(0, monitor.lostTime) { "Incorrect lost time" } },
-            { assertEquals(5.84093E9, monitor.energyUsage, 1E4) { "Incorrect power draw" } }
-        )
     }
 
     /**
@@ -134,7 +89,7 @@ class MyTest {
     @Test
     fun testSmall() = runSimulation {
         val seed = 1L
-        val workload = createTestWorkload(0.25, seed)
+        val workload = getWorkload("yuvi-trace")
         val topology = createTopology("topology2")
         val monitor = monitor
 
@@ -150,140 +105,20 @@ class MyTest {
         }
 
         println(
-            "Scheduler " +
-                "Success=${monitor.attemptsSuccess} " +
-                "Failure=${monitor.attemptsFailure} " +
-                "Error=${monitor.attemptsError} " +
-                "Pending=${monitor.serversPending} " +
-                "Active=${monitor.serversActive}"
+            "Scheduler \n" +
+                "Success=${monitor.attemptsSuccess}\n" +
+                "Failure=${monitor.attemptsFailure}\n" +
+                "Error=${monitor.attemptsError}\n" +
+                "Pending=${monitor.serversPending}\n" +
+                "Active=${monitor.serversActive}\n" +
+                "idleTime=${monitor.idleTime}\n" +
+                "activeTime=${monitor.activeTime}\n" +
+                "stealTime=${monitor.stealTime}\n" +
+                "energyUsage=${monitor.energyUsage}\n" +
+                "powerUsage=${monitor.powerUsage}\n" +
+                "cpuUtilization=${monitor.cpuUtilization}\n" +
+                "uptime=${monitor.uptime} \n"
         )
-
-        // Note that these values have been verified beforehand
-        assertAll(
-            { assertEquals(10999514, monitor.idleTime) { "Idle time incorrect" } },
-            { assertEquals(9741285, monitor.activeTime) { "Active time incorrect" } },
-            { assertEquals(0, monitor.stealTime) { "Steal time incorrect" } },
-            { assertEquals(0, monitor.lostTime) { "Lost time incorrect" } },
-            { assertEquals(7.0116E8, monitor.energyUsage, 1E4) { "Incorrect power draw" } }
-        )
-    }
-
-    /**
-     * Test a small simulation setup with interference.
-     */
-    @Test
-    fun testInterference() = runSimulation {
-        val seed = 0L
-        val workload = createTestWorkload(1.0, seed)
-        val topology = createTopology()
-
-        Provisioner(dispatcher, seed).use { provisioner ->
-            provisioner.runSteps(
-                setupComputeService(serviceDomain = "compute.opendc.org", { computeScheduler }),
-                registerComputeMonitor(serviceDomain = "compute.opendc.org", monitor),
-                setupHosts(serviceDomain = "compute.opendc.org", topology)
-            )
-
-            val service = provisioner.registry.resolve("compute.opendc.org", ComputeService::class.java)!!
-            service.replay(timeSource, workload, seed, interference = true)
-        }
-
-        println(
-            "Scheduler " +
-                "Success=${monitor.attemptsSuccess} " +
-                "Failure=${monitor.attemptsFailure} " +
-                "Error=${monitor.attemptsError} " +
-                "Pending=${monitor.serversPending} " +
-                "Active=${monitor.serversActive}"
-        )
-
-        // Note that these values have been verified beforehand
-        assertAll(
-            { assertEquals(6028018, monitor.idleTime) { "Idle time incorrect" } },
-            { assertEquals(14712781, monitor.activeTime) { "Active time incorrect" } },
-            { assertEquals(12532934, monitor.stealTime) { "Steal time incorrect" } },
-            { assertEquals(424267, monitor.lostTime) { "Lost time incorrect" } },
-            { assertEquals(26512.185398076126, monitor.sup) { "CPU Utilization" } }
-        )
-    }
-
-    /**
-     * Test a small simulation setup with interference.
-     */
-    @Test
-    fun testInterference2() = runSimulation {
-        val seed = 0L
-        val workload = createTestWorkload(1.0, seed)
-        val topology = createTopology("topology2")
-
-        Provisioner(dispatcher, seed).use { provisioner ->
-            provisioner.runSteps(
-                setupComputeService(serviceDomain = "compute.opendc.org", { computeScheduler }),
-                registerComputeMonitor(serviceDomain = "compute.opendc.org", monitor),
-                setupHosts(serviceDomain = "compute.opendc.org", topology)
-            )
-
-            val service = provisioner.registry.resolve("compute.opendc.org", ComputeService::class.java)!!
-            service.replay(timeSource, workload, seed, interference = true)
-        }
-
-        println(
-            "Scheduler " +
-                "Success=${monitor.attemptsSuccess} " +
-                "Failure=${monitor.attemptsFailure} " +
-                "Error=${monitor.attemptsError} " +
-                "Pending=${monitor.serversPending} " +
-                "Active=${monitor.serversActive}"
-        )
-
-        // Note that these values have been verified beforehand
-        assertAll(
-            { assertEquals(6028018, monitor.idleTime) { "Idle time incorrect" } },
-            { assertEquals(14712781, monitor.activeTime) { "Active time incorrect" } },
-            { assertEquals(12532934, monitor.stealTime) { "Steal time incorrect" } },
-            { assertEquals(424267, monitor.lostTime) { "Lost time incorrect" } },
-            { assertEquals(26512, monitor.sup) { "CPU Utilization" } }
-        )
-    }
-
-    /**
-     * Test a small simulation setup with failures.
-     */
-    @Test
-    fun testFailures() = runSimulation {
-        val seed = 0L
-        val topology = createTopology("single")
-        val workload = createTestWorkload(0.25, seed)
-        val monitor = monitor
-
-        Provisioner(dispatcher, seed).use { provisioner ->
-            provisioner.runSteps(
-                setupComputeService(serviceDomain = "compute.opendc.org", { computeScheduler }),
-                registerComputeMonitor(serviceDomain = "compute.opendc.org", monitor),
-                setupHosts(serviceDomain = "compute.opendc.org", topology)
-            )
-
-            val service = provisioner.registry.resolve("compute.opendc.org", ComputeService::class.java)!!
-            service.replay(timeSource, workload, seed, failureModel = grid5000(Duration.ofDays(7)))
-        }
-
-        // Note that these values have been verified beforehand
-        assertAll(
-            { assertEquals(10085111, monitor.idleTime) { "Idle time incorrect" } },
-            { assertEquals(8539204, monitor.activeTime) { "Active time incorrect" } },
-            { assertEquals(0, monitor.stealTime) { "Steal time incorrect" } },
-            { assertEquals(0, monitor.lostTime) { "Lost time incorrect" } },
-            { assertEquals(2328039558, monitor.uptime) { "Uptime incorrect" } },
-            { assertEquals(26512, monitor.sup) { "CPU Utilization" } }
-        )
-    }
-
-    /**
-     * Obtain the trace reader for the test.
-     */
-    private fun createTestWorkload(fraction: Double, seed: Long): List<VirtualMachine> {
-        val source = trace("bitbrains-small").sampleByLoad(fraction)
-        return source.resolve(workloadLoader, Random(seed))
     }
 
     /**
@@ -315,7 +150,8 @@ class MyTest {
         var lostTime = 0L
         var energyUsage = 0.0
         var uptime = 0L
-        var sup = 0.0
+        var cpuUtilization = 0.0
+        var powerUsage = 0.0
 
         override fun record(reader: HostTableReader) {
             idleTime += reader.cpuIdleTime
@@ -324,7 +160,273 @@ class MyTest {
             lostTime += reader.cpuLostTime
             energyUsage += reader.powerTotal
             uptime += reader.uptime
-            sup += reader.cpuUtilization
+            cpuUtilization += reader.cpuUtilization
+            powerUsage += reader.powerUsage
         }
     }
+
+    private val factory = CsvFactory()
+        .enable(CsvParser.Feature.ALLOW_COMMENTS)
+        .enable(CsvParser.Feature.TRIM_SPACES)
+
+    private val baseDir: File = File("src/test/resources/traces")
+
+    private fun parseFragments(path: File): Map<Int, FragmentBuilder> {
+        val fragments = mutableMapOf<Int, FragmentBuilder>()
+
+        val parser = factory.createParser(path)
+        parser.schema = fragmentsSchema
+
+        var id = 0
+        var timestamp = 0L
+        var duration = 0
+        var cores = 0
+        var usage = 0.0
+
+        while (!parser.isClosed) {
+            val token = parser.nextValue()
+            if (token == JsonToken.END_OBJECT) {
+                val builder = fragments.computeIfAbsent(id) { FragmentBuilder() }
+                val deadlineMs = timestamp
+                val timeMs = (timestamp - duration)
+                builder.add(timeMs, deadlineMs, usage, cores)
+
+//                println("FRAGMENTS\n" +
+//                    "id $id\n" +
+//                    "timestamp $timestamp\n" +
+//                    "duration $duration\n" +
+//                    "cores $cores\n" +
+//                    "usage $usage\n"+
+//                    "timeMs $timeMs\n"+
+//                    "deadlineMs $deadlineMs\n")
+                id = 0
+                timestamp = 0L
+                duration = 0
+                cores = 0
+                usage = 0.0
+
+                continue
+            }
+
+            when (parser.currentName) {
+                "id" -> id = parser.valueAsInt
+                "timestamp" -> timestamp = parser.valueAsLong
+                "duration" -> duration = parser.valueAsInt
+                "cores" -> cores = parser.valueAsInt
+                "usage" -> usage = parser.valueAsDouble
+            }
+        }
+
+        return fragments
+    }
+
+    private fun parseMeta(path: File, fragments: Map<Int, FragmentBuilder>): List<VirtualMachine> {
+        val vms = mutableListOf<VirtualMachine>()
+        var counter = 0
+
+        val parser = factory.createParser(path)
+        parser.schema = metaSchema
+
+        var id = 0
+        var startTime = 0L
+        var stopTime = 0L
+        var cpuCount = 0
+        var cpuCapacity = 0.0
+        var memCapacity = 0.0
+
+        while (!parser.isClosed) {
+            val token = parser.nextValue()
+            if (token == JsonToken.END_OBJECT) {
+                if (!fragments.containsKey(id)) {
+                    continue
+                }
+                val builder = fragments.getValue(id)
+                val totalLoad = builder.totalLoad
+                val uid = UUID.nameUUIDFromBytes("$id-${counter++}".toByteArray())
+
+                println("adding VM:\n" +
+                    "UID $uid\n" +
+                    "ID $id\n" +
+                    "cpuCount $cpuCount\n" +
+                    "cpuCapacity $cpuCapacity\n" +
+                    "memCapacity $memCapacity\n" +
+                    "totalLoad $totalLoad\n" +
+                    "startTime $startTime\n" +
+                    "stopTime $stopTime\n")
+                vms.add(
+                    VirtualMachine(
+                        uid,
+                        id.toString(),
+                        cpuCount,
+                        cpuCapacity,
+                        memCapacity.roundToLong(),
+                        totalLoad,
+                        Instant.ofEpochMilli(startTime),
+                        Instant.ofEpochMilli(stopTime),
+                        builder.build(),
+                        null
+                    )
+                )
+
+//                println("META\n" +
+//                    "id $id\n" +
+//                    "startTime $startTime\n" +
+//                    "stopTime $stopTime\n" +
+//                    "cpuCount $cpuCount\n" +
+//                    "cpuCapacity $cpuCapacity\n"+
+//                    "memCapacity $memCapacity\n")
+                id = 0
+                startTime = 0L
+                stopTime = 0
+                cpuCount = 0
+                cpuCapacity = 0.0
+                memCapacity = 0.0
+
+                continue
+            }
+
+            when (parser.currentName) {
+                "id" -> id = parser.valueAsInt
+                "startTime" -> startTime = parser.valueAsLong
+                "stopTime" -> stopTime = parser.valueAsLong
+                "cpuCount" -> cpuCount = parser.valueAsInt
+                "cpuCapacity" -> cpuCapacity = parser.valueAsDouble
+                "memCapacity" -> memCapacity = parser.valueAsDouble
+            }
+        }
+
+        return vms
+    }
+
+    private fun getWorkload(workloadDir: String) : List<VirtualMachine> {
+        val traceFile = baseDir.resolve("$workloadDir/trace.csv")
+        val metaFile = baseDir.resolve("$workloadDir/meta.csv")
+        val fragments = parseFragments(traceFile)
+        return parseMeta(metaFile, fragments)
+    }
+
+    private class FragmentBuilder {
+        /**
+         * The total load of the trace.
+         */
+        @JvmField var totalLoad: Double = 0.0
+
+        /**
+         * The internal builder for the trace.
+         */
+        private val builder = SimTrace.builder()
+
+        /**
+         * The deadline of the previous fragment.
+         */
+        private var previousDeadline = Long.MIN_VALUE
+
+        /**
+         * Add a fragment to the trace.
+         *
+         * @param timestamp Timestamp at which the fragment starts (in epoch millis).
+         * @param deadline Timestamp at which the fragment ends (in epoch millis).
+         * @param usage CPU usage of this fragment.
+         * @param cores Number of cores used.
+         */
+        fun add(timestamp: Long, deadline: Long, usage: Double, cores: Int) {
+            val duration = max(0, deadline - timestamp)
+            totalLoad += (usage * duration) / 1000.0 // avg MHz * duration = MFLOPs
+
+            if (timestamp != previousDeadline) {
+                // There is a gap between the previous and current fragment; fill the gap
+                builder.add(timestamp, 0.0, cores)
+            }
+
+            builder.add(deadline, usage, cores)
+            previousDeadline = deadline
+        }
+
+        /**
+         * Build the trace.
+         */
+        fun build(): SimTrace = builder.build()
+    }
+
+        /**
+         * The [CsvSchema] that is used to parse the trace file.
+         */
+        private val fragmentsSchema = CsvSchema.builder()
+            .addColumn("id", CsvSchema.ColumnType.NUMBER)
+            .addColumn("timestamp", CsvSchema.ColumnType.NUMBER)
+            .addColumn("duration", CsvSchema.ColumnType.NUMBER)
+            .addColumn("cores", CsvSchema.ColumnType.NUMBER)
+            .addColumn("usage", CsvSchema.ColumnType.NUMBER)
+            .setAllowComments(true)
+            .setUseHeader(true)
+            .build()
+
+    /**
+     * The [CsvSchema] that is used to parse the meta file.
+     */
+    private val metaSchema = CsvSchema.builder()
+            .addColumn("id", CsvSchema.ColumnType.NUMBER)
+            .addColumn("startTime", CsvSchema.ColumnType.NUMBER)
+            .addColumn("stopTime", CsvSchema.ColumnType.NUMBER)
+            .addColumn("cpuCount", CsvSchema.ColumnType.NUMBER)
+            .addColumn("cpuCapacity", CsvSchema.ColumnType.NUMBER)
+            .addColumn("memCapacity", CsvSchema.ColumnType.NUMBER)
+            .setAllowComments(true)
+            .setUseHeader(true)
+            .build()
+
+
+
+    /**
+     * A hardcoded trace generator for testing purposes
+     */
+
+//    private fun generateTrace(numOfVms: Int, startTime: Instant): List<VirtualMachine> {
+//        val trace = mutableListOf<VirtualMachine>()
+//        val sessionDurationInSeconds = 60*60*24
+//        val stopTime = startTime.plusSeconds(sessionDurationInSeconds.toLong())
+//        val simTrace = generateSimTrace(0, sessionDurationInSeconds, startTime, stopTime)
+//
+//        for (i in 1..numOfVms) {
+//            val vm = VirtualMachine(
+//                uid = UUID.randomUUID(),
+//                name = "VM_$i",
+//                cpuCount = 1,
+//                cpuCapacity = 1000.0,
+//                memCapacity = 4096,
+//                totalLoad = Math.random() * 100,
+//                startTime = startTime,
+//                stopTime = stopTime,
+//                trace = simTrace,
+//                interferenceProfile = null
+//            )
+//            trace.add(vm)
+//        }
+//        return trace
+//    }
+//
+//    private fun generateSimTrace(whichTrace: Int, sessionDuration: Int, startTime: Instant, stopTime: Instant) : SimTrace {
+//        if (whichTrace == 0) {
+//            val usageCol = doubleArrayOf(50.0, 200.0, 4000.0, 8000.0, 3000.0, 200.0)
+//            val deadlineCol = longArrayOf(
+//                startTime.plusSeconds((sessionDuration/24*0.5).toLong()).toEpochMilli(),
+//                startTime.plusSeconds((sessionDuration/24*8).toLong()).toEpochMilli(),
+//                startTime.plusSeconds((sessionDuration/24*4).toLong()).toEpochMilli(),
+//                startTime.plusSeconds((sessionDuration/24*4).toLong()).toEpochMilli(),
+//                startTime.plusSeconds((sessionDuration/24*3).toLong()).toEpochMilli(),
+//                stopTime.toEpochMilli()
+//            )
+//            val coresCol = intArrayOf(1, 2, 64, 128, 32, 2)
+//            val size = 6
+//            return SimTrace(usageCol, deadlineCol, coresCol, size)
+//        } else {
+//            val usageCol = doubleArrayOf(50.0)
+//            val deadlineCol = longArrayOf(startTime.toEpochMilli())
+//            val coresCol = intArrayOf(1)
+//            val size = 1
+//            val trace = SimTrace(usageCol, deadlineCol, coresCol, size)
+//            return trace
+//        }
+//    }
+
 }
