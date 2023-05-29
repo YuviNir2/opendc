@@ -90,7 +90,7 @@ class MyTest {
     fun testSmall() = runSimulation {
         val seed = 1L
         val workload = getWorkload("yuvi-trace")
-        val topology = createTopology("topology2")
+        val topology = createTopology("room10")
         val monitor = monitor
 
         Provisioner(dispatcher, seed).use { provisioner ->
@@ -299,8 +299,8 @@ class MyTest {
     }
 
     private fun getWorkload(workloadDir: String) : List<VirtualMachine> {
-        val traceFile = baseDir.resolve("$workloadDir/trace.csv")
-        val metaFile = baseDir.resolve("$workloadDir/meta.csv")
+        val traceFile = baseDir.resolve("$workloadDir/ex1-trace.csv")
+        val metaFile = baseDir.resolve("$workloadDir/ex1-meta.csv")
         val fragments = parseFragments(traceFile)
         return parseMeta(metaFile, fragments)
     }
