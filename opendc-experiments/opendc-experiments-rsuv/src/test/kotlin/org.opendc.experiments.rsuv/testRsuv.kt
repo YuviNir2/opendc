@@ -107,18 +107,26 @@ class MyTest {
         println(
             "Scheduler \n" +
                 "Success=${monitor.attemptsSuccess}\n" +
-                "Failure=${monitor.attemptsFailure}\n" +
-                "Error=${monitor.attemptsError}\n" +
-                "Pending=${monitor.serversPending}\n" +
-                "Active=${monitor.serversActive}\n" +
+//                "Failure=${monitor.attemptsFailure}\n" +
+//                "Error=${monitor.attemptsError}\n" +
+//                "Pending=${monitor.serversPending}\n" +
+//                "Active=${monitor.serversActive}\n" +
                 "idleTime=${monitor.idleTime}\n" +
                 "activeTime=${monitor.activeTime}\n" +
                 "stealTime=${monitor.stealTime}\n" +
-                "energyUsage=${monitor.energyUsage}\n" +
+                "energyUsage(Total Energy Consumption)=${monitor.energyUsage}\n" +
                 "powerUsage=${monitor.powerUsage}\n" +
                 "cpuUtilization=${monitor.cpuUtilization}\n" +
                 "uptime=${monitor.uptime} \n"
         )
+    }
+
+    private fun getWorkload(workloadDir: String) : List<VirtualMachine> {
+        val traceFile = baseDir.resolve("$workloadDir/numPlayersTrace.csv")
+        val metaFile = baseDir.resolve("$workloadDir/meta.csv")
+//        val fragments = parseFragments(traceFile)
+        val fragments = buildFragments(traceFile, 100)
+        return parseMeta(metaFile, fragments)
     }
 
     /**
@@ -150,6 +158,8 @@ class MyTest {
         var lostTime = 0L
         var energyUsage = 0.0
         var uptime = 0L
+        var cpuUsage = 0.0
+        var cpuDemand = 0.0
         var cpuUtilization = 0.0
         var powerUsage = 0.0
 
@@ -160,6 +170,8 @@ class MyTest {
             lostTime += reader.cpuLostTime
             energyUsage += reader.powerTotal
             uptime += reader.uptime
+            cpuUsage += reader.cpuUsage
+            cpuDemand += reader.cpuDemand
             cpuUtilization += reader.cpuUtilization
             powerUsage += reader.powerUsage
         }
@@ -170,6 +182,73 @@ class MyTest {
         .enable(CsvParser.Feature.TRIM_SPACES)
 
     private val baseDir: File = File("src/test/resources/traces")
+    private val maxUsage: Double = 10000.0
+    private val maxCores: Int = 8
+
+    private fun buildFragments(path : File, maxNumPlayersPerVm: Int): Map<Int, FragmentBuilder> {
+        val fragments = mutableMapOf<Int, FragmentBuilder>()
+        val parser = factory.createParser(path)
+        parser.schema = numPlayersSchema
+
+        var timestamp = 0L
+        var duration = 0L
+        var numPlayers = 0
+
+        while (!parser.isClosed) {
+            val token = parser.nextValue()
+            if (token == JsonToken.END_OBJECT) {
+                var remainingPlayers = numPlayers
+                val deadlineMs = timestamp + duration
+                val timeMs = timestamp
+                val numVms = Math.ceil(numPlayers.toDouble()/maxNumPlayersPerVm).toInt()
+                println("Number of VM = $numVms")
+                for(i in 1..Math.ceil(numPlayers.toDouble()/maxNumPlayersPerVm).toInt()) {
+                    val builder = fragments.computeIfAbsent(i) { FragmentBuilder() }
+                    if (remainingPlayers > maxNumPlayersPerVm) {
+                        builder.add(timeMs, deadlineMs, maxUsage, maxCores)
+                        remainingPlayers -= maxNumPlayersPerVm
+                    }
+                    else {
+                        val usage = maxUsage*remainingPlayers/maxNumPlayersPerVm
+                        val cores = getNumCores(remainingPlayers.toDouble()/maxNumPlayersPerVm)
+                        println("remainingPlayers= $remainingPlayers\n" +
+                            "semi usage= $usage\n" +
+                            "semi cores= $cores")
+                        builder.add(timeMs, deadlineMs, usage, cores)
+                    }
+                }
+
+                println("NUM PLAYERS FUNCTION\n" +
+                    "duration $duration\n" +
+                    "avgPlayerCount $numPlayers\n"+
+                    "timeMs $timeMs\n"+
+                    "timestamp $timestamp\n" +
+                    "deadlineMs $deadlineMs\n")
+                timestamp = 0L
+                duration = 0
+                numPlayers = 0
+
+                continue
+            }
+
+            when (parser.currentName) {
+                "timestamp" -> timestamp = parser.valueAsLong
+                "duration" -> duration = parser.valueAsLong
+                "avgPlayerCount" -> numPlayers = parser.valueAsInt
+            }
+        }
+
+        return fragments
+    }
+
+    private fun getNumCores(proportion: Double) : Int {
+        return when {
+            proportion > 0.75 -> 8
+            proportion > 0.5 -> 4
+            proportion > 0.25 -> 2
+            else -> 1
+        }
+    }
 
     private fun parseFragments(path: File): Map<Int, FragmentBuilder> {
         val fragments = mutableMapOf<Int, FragmentBuilder>()
@@ -179,7 +258,7 @@ class MyTest {
 
         var id = 0
         var timestamp = 0L
-        var duration = 0
+        var duration = 0L
         var cores = 0
         var usage = 0.0
 
@@ -191,14 +270,14 @@ class MyTest {
                 val timeMs = (timestamp - duration)
                 builder.add(timeMs, deadlineMs, usage, cores)
 
-//                println("FRAGMENTS\n" +
-//                    "id $id\n" +
-//                    "timestamp $timestamp\n" +
-//                    "duration $duration\n" +
-//                    "cores $cores\n" +
-//                    "usage $usage\n"+
-//                    "timeMs $timeMs\n"+
-//                    "deadlineMs $deadlineMs\n")
+                println("FRAGMENTS\n" +
+                    "id $id\n" +
+                    "timestamp $timestamp\n" +
+                    "duration $duration\n" +
+                    "cores $cores\n" +
+                    "usage $usage\n"+
+                    "timeMs $timeMs\n"+
+                    "deadlineMs $deadlineMs\n")
                 id = 0
                 timestamp = 0L
                 duration = 0
@@ -211,7 +290,7 @@ class MyTest {
             when (parser.currentName) {
                 "id" -> id = parser.valueAsInt
                 "timestamp" -> timestamp = parser.valueAsLong
-                "duration" -> duration = parser.valueAsInt
+                "duration" -> duration = parser.valueAsLong
                 "cores" -> cores = parser.valueAsInt
                 "usage" -> usage = parser.valueAsDouble
             }
@@ -243,7 +322,6 @@ class MyTest {
                 val builder = fragments.getValue(id)
                 val totalLoad = builder.totalLoad
                 val uid = UUID.nameUUIDFromBytes("$id-${counter++}".toByteArray())
-
                 println("adding VM:\n" +
                     "UID $uid\n" +
                     "ID $id\n" +
@@ -298,13 +376,6 @@ class MyTest {
         return vms
     }
 
-    private fun getWorkload(workloadDir: String) : List<VirtualMachine> {
-        val traceFile = baseDir.resolve("$workloadDir/ex1-trace.csv")
-        val metaFile = baseDir.resolve("$workloadDir/ex1-meta.csv")
-        val fragments = parseFragments(traceFile)
-        return parseMeta(metaFile, fragments)
-    }
-
     private class FragmentBuilder {
         /**
          * The total load of the trace.
@@ -351,15 +422,23 @@ class MyTest {
         /**
          * The [CsvSchema] that is used to parse the trace file.
          */
-        private val fragmentsSchema = CsvSchema.builder()
-            .addColumn("id", CsvSchema.ColumnType.NUMBER)
-            .addColumn("timestamp", CsvSchema.ColumnType.NUMBER)
-            .addColumn("duration", CsvSchema.ColumnType.NUMBER)
-            .addColumn("cores", CsvSchema.ColumnType.NUMBER)
-            .addColumn("usage", CsvSchema.ColumnType.NUMBER)
-            .setAllowComments(true)
-            .setUseHeader(true)
-            .build()
+    private val numPlayersSchema = CsvSchema.builder()
+        .addColumn("timestamp", CsvSchema.ColumnType.NUMBER)
+        .addColumn("duration", CsvSchema.ColumnType.NUMBER)
+        .addColumn("avgPlayerCount", CsvSchema.ColumnType.NUMBER)
+        .setAllowComments(true)
+        .setUseHeader(true)
+        .build()
+
+    private val fragmentsSchema = CsvSchema.builder()
+        .addColumn("id", CsvSchema.ColumnType.NUMBER)
+        .addColumn("timestamp", CsvSchema.ColumnType.NUMBER)
+        .addColumn("duration", CsvSchema.ColumnType.NUMBER)
+        .addColumn("cores", CsvSchema.ColumnType.NUMBER)
+        .addColumn("usage", CsvSchema.ColumnType.NUMBER)
+        .setAllowComments(true)
+        .setUseHeader(true)
+        .build()
 
     /**
      * The [CsvSchema] that is used to parse the meta file.
