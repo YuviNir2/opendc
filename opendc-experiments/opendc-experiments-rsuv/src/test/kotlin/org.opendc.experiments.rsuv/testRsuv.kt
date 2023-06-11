@@ -114,18 +114,28 @@ class MyTest {
                 "idleTime=${monitor.idleTime}\n" +
                 "activeTime=${monitor.activeTime}\n" +
                 "stealTime=${monitor.stealTime}\n" +
+                "lostTime=${monitor.lostTime}\n" +
+                "cpuDemand=${monitor.cpuDemand}\n" +
+                "cpuLimit=${monitor.cpuLimit}\n" +
                 "energyUsage(Total Energy Consumption)=${monitor.energyUsage}\n" +
                 "powerUsage=${monitor.powerUsage}\n" +
                 "cpuUtilization=${monitor.cpuUtilization}\n" +
-                "uptime=${monitor.uptime} \n"
+                "uptime=${monitor.uptime} \n" +
+                "downtime=${monitor.downtime} \n"
         )
     }
 
+    private val baseDir: File = File("src/test/resources/traces")
+    private val maxUsage: Double = 15000.0
+    private val maxCores: Int = 8
+    private val maxNumPlayersPerVm = 100
+
     private fun getWorkload(workloadDir: String) : List<VirtualMachine> {
-        val traceFile = baseDir.resolve("$workloadDir/numPlayersTrace.csv")
-        val metaFile = baseDir.resolve("$workloadDir/meta.csv")
+//        println("In GetWorkload\n")
+        val traceFile = baseDir.resolve("$workloadDir/hivebedrock_network_30000_pings.csv")
+        val metaFile = baseDir.resolve("$workloadDir/meta1000vms.csv")
 //        val fragments = parseFragments(traceFile)
-        val fragments = buildFragments(traceFile, 100)
+        val fragments = buildFragments(traceFile)
         return parseMeta(metaFile, fragments)
     }
 
@@ -158,6 +168,8 @@ class MyTest {
         var lostTime = 0L
         var energyUsage = 0.0
         var uptime = 0L
+        var downtime = 0L
+        var cpuLimit = 0.0
         var cpuUsage = 0.0
         var cpuDemand = 0.0
         var cpuUtilization = 0.0
@@ -170,6 +182,8 @@ class MyTest {
             lostTime += reader.cpuLostTime
             energyUsage += reader.powerTotal
             uptime += reader.uptime
+            downtime += reader.downtime
+            cpuLimit += reader.cpuLimit
             cpuUsage += reader.cpuUsage
             cpuDemand += reader.cpuDemand
             cpuUtilization += reader.cpuUtilization
@@ -181,60 +195,57 @@ class MyTest {
         .enable(CsvParser.Feature.ALLOW_COMMENTS)
         .enable(CsvParser.Feature.TRIM_SPACES)
 
-    private val baseDir: File = File("src/test/resources/traces")
-    private val maxUsage: Double = 10000.0
-    private val maxCores: Int = 8
-
-    private fun buildFragments(path : File, maxNumPlayersPerVm: Int): Map<Int, FragmentBuilder> {
+    private fun buildFragments(path : File): Map<Int, FragmentBuilder> {
         val fragments = mutableMapOf<Int, FragmentBuilder>()
         val parser = factory.createParser(path)
         parser.schema = numPlayersSchema
 
-        var timestamp = 0L
-        var duration = 0L
-        var numPlayers = 0
+        var timestampStart = 0L
+        var timestampEnd = 0L
+        var numPlayersEnd = 0
 
         while (!parser.isClosed) {
             val token = parser.nextValue()
             if (token == JsonToken.END_OBJECT) {
-                var remainingPlayers = numPlayers
-                val deadlineMs = timestamp + duration
-                val timeMs = timestamp
-                val numVms = Math.ceil(numPlayers.toDouble()/maxNumPlayersPerVm).toInt()
-                println("Number of VM = $numVms")
-                for(i in 1..Math.ceil(numPlayers.toDouble()/maxNumPlayersPerVm).toInt()) {
+                if (timestampStart == 0L) {
+                    timestampStart = timestampEnd
+                    continue
+                }
+
+                var remainingPlayers = numPlayersEnd
+                val numVms = Math.ceil(numPlayersEnd.toDouble()/maxNumPlayersPerVm).toInt()
+//                println("TimestampEnd=$timestampEnd Number of VM=$numVms")
+                for(i in 1..numVms) {
                     val builder = fragments.computeIfAbsent(i) { FragmentBuilder() }
                     if (remainingPlayers > maxNumPlayersPerVm) {
-                        builder.add(timeMs, deadlineMs, maxUsage, maxCores)
+                        builder.add(timestampStart, timestampEnd, maxUsage, maxCores)
                         remainingPlayers -= maxNumPlayersPerVm
                     }
                     else {
                         val usage = maxUsage*remainingPlayers/maxNumPlayersPerVm
                         val cores = getNumCores(remainingPlayers.toDouble()/maxNumPlayersPerVm)
-                        println("remainingPlayers= $remainingPlayers\n" +
-                            "semi usage= $usage\n" +
-                            "semi cores= $cores")
-                        builder.add(timeMs, deadlineMs, usage, cores)
+//                        println("remainingPlayers= $remainingPlayers\n" +
+//                            "semi usage= $usage\n" +
+//                            "semi cores= $cores")
+                        builder.add(timestampStart, timestampEnd, usage, cores)
                     }
                 }
 
-                println("NUM PLAYERS FUNCTION\n" +
-                    "duration $duration\n" +
-                    "avgPlayerCount $numPlayers\n"+
-                    "timeMs $timeMs\n"+
-                    "timestamp $timestamp\n" +
-                    "deadlineMs $deadlineMs\n")
-                timestamp = 0L
-                duration = 0
-                numPlayers = 0
+//                println("NUM PLAYERS FUNCTION\n" +
+//                    "numPlayersEnd $numPlayersEnd\n"+
+//                    "timestampStart $timestampStart\n" +
+//                    "timestampEnd $timestampEnd\n")
+
+                timestampStart = timestampEnd
+                timestampEnd = 0L
+                numPlayersEnd = 0
 
                 continue
             }
 
             when (parser.currentName) {
-                "timestamp" -> timestamp = parser.valueAsLong
-                "duration" -> duration = parser.valueAsLong
-                "avgPlayerCount" -> numPlayers = parser.valueAsInt
+                "timestamp" -> timestampEnd = parser.valueAsLong
+                "avgPlayerCount" -> numPlayersEnd = parser.valueAsInt
             }
         }
 
@@ -322,15 +333,15 @@ class MyTest {
                 val builder = fragments.getValue(id)
                 val totalLoad = builder.totalLoad
                 val uid = UUID.nameUUIDFromBytes("$id-${counter++}".toByteArray())
-                println("adding VM:\n" +
-                    "UID $uid\n" +
-                    "ID $id\n" +
-                    "cpuCount $cpuCount\n" +
-                    "cpuCapacity $cpuCapacity\n" +
-                    "memCapacity $memCapacity\n" +
-                    "totalLoad $totalLoad\n" +
-                    "startTime $startTime\n" +
-                    "stopTime $stopTime\n")
+//                println("adding VM:\n" +
+//                    "UID $uid\n" +
+//                    "ID $id\n" +
+//                    "cpuCount $cpuCount\n" +
+//                    "cpuCapacity $cpuCapacity\n" +
+//                    "memCapacity $memCapacity\n" +
+//                    "totalLoad $totalLoad\n" +
+//                    "startTime $startTime\n" +
+//                    "stopTime $stopTime\n")
                 vms.add(
                     VirtualMachine(
                         uid,
@@ -424,7 +435,6 @@ class MyTest {
          */
     private val numPlayersSchema = CsvSchema.builder()
         .addColumn("timestamp", CsvSchema.ColumnType.NUMBER)
-        .addColumn("duration", CsvSchema.ColumnType.NUMBER)
         .addColumn("avgPlayerCount", CsvSchema.ColumnType.NUMBER)
         .setAllowComments(true)
         .setUseHeader(true)
