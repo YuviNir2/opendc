@@ -48,13 +48,15 @@ import org.opendc.experiments.compute.telemetry.table.ServiceTableReader
 import org.opendc.experiments.compute.topology.HostSpec
 import org.opendc.experiments.compute.trace
 import org.opendc.experiments.provisioner.Provisioner
-import org.opendc.simulator.compute.workload.SimTrace
+ import org.opendc.simulator.compute.power.CpuPowerModels
+ import org.opendc.simulator.compute.workload.SimTrace
 import org.opendc.simulator.kotlin.runSimulation
 import java.io.File
 import java.time.Instant
 import java.util.Random
 import java.util.UUID
-import kotlin.math.max
+ import kotlin.math.ceil
+ import kotlin.math.max
  import kotlin.math.roundToLong
 
 /**
@@ -89,8 +91,8 @@ class MyTest {
     @Test
     fun testSmall() = runSimulation {
         val seed = 1L
+        val topology = createTopology("single")
         val workload = getWorkload("yuvi-trace")
-        val topology = createTopology("room10")
         val monitor = monitor
 
         Provisioner(dispatcher, seed).use { provisioner ->
@@ -129,13 +131,16 @@ class MyTest {
     private val maxUsage: Double = 15000.0
     private val maxCores: Int = 8
     private val maxNumPlayersPerVm = 100
+    enum class GameType {
+        MMOG, FPS, RTS
+    }
 
     private fun getWorkload(workloadDir: String) : List<VirtualMachine> {
 //        println("In GetWorkload\n")
-        val traceFile = baseDir.resolve("$workloadDir/hivebedrock_network_30000_pings.csv")
-        val metaFile = baseDir.resolve("$workloadDir/meta1000vms.csv")
+        val traceFile = baseDir.resolve("$workloadDir/numPlayersTrace3.csv")
+        val metaFile = baseDir.resolve("$workloadDir/meta.csv")
 //        val fragments = parseFragments(traceFile)
-        val fragments = buildFragments(traceFile)
+        val fragments = buildFragments2(traceFile, maxNumPlayersPerVm, GameType.MMOG)
         return parseMeta(metaFile, fragments)
     }
 
@@ -144,7 +149,7 @@ class MyTest {
      */
     private fun createTopology(name: String = "topology"): List<HostSpec> {
         val stream = checkNotNull(object {}.javaClass.getResourceAsStream("/env/$name.txt"))
-        return stream.use { clusterTopology(stream) }
+        return stream.use { clusterTopology(stream, CpuPowerModels.linear(350.0, 200.0)) }
     }
 
     class TestComputeMonitor : ComputeMonitor {
@@ -252,12 +257,81 @@ class MyTest {
         return fragments
     }
 
+    private fun buildFragments2(path: File, maxNumPlayers: Int, gameType: GameType): Map<Int, FragmentBuilder> {
+        val fragments = mutableMapOf<Int, FragmentBuilder>()
+        val parser = factory.createParser(path)
+        parser.schema = numPlayersSchema
+
+        val singlePlayerUsage = maxUsage/maxNumPlayers
+
+        var timestampStart = 0L
+        var timestampEnd = 0L
+        var numPlayersEnd = 0
+
+        while (!parser.isClosed) {
+            val token = parser.nextValue()
+            if (token == JsonToken.END_OBJECT) {
+                if (timestampStart == 0L) {
+                    timestampStart = timestampEnd
+                    continue
+                }
+
+                var remainingPlayers = numPlayersEnd
+                val numVms = ceil(numPlayersEnd.toDouble()/maxNumPlayers).toInt()
+//                println("TimestampEnd=$timestampEnd Number of VM=$numVms")
+                for(i in 1..numVms) {
+                    val builder = fragments.computeIfAbsent(i) { FragmentBuilder() }
+
+                    if (remainingPlayers > maxNumPlayers) {
+                        val usage = getUsage(gameType, maxNumPlayers, singlePlayerUsage)
+                        builder.add(timestampStart, timestampEnd, usage, maxCores)
+                        remainingPlayers -= maxNumPlayers
+                    }
+                    else {
+                        val usage = getUsage(gameType, remainingPlayers, singlePlayerUsage)
+                        val cores = getNumCores(remainingPlayers.toDouble()/maxNumPlayers)
+//                        println("remainingPlayers= $remainingPlayers\n" +
+//                            "semi usage= $usage\n" +
+//                            "semi cores= $cores")
+                        builder.add(timestampStart, timestampEnd, usage, cores)
+                    }
+                }
+
+//                println("NUM PLAYERS FUNCTION\n" +
+//                    "numPlayersEnd $numPlayersEnd\n"+
+//                    "timestampStart $timestampStart\n" +
+//                    "timestampEnd $timestampEnd\n")
+
+                timestampStart = timestampEnd
+                timestampEnd = 0L
+                numPlayersEnd = 0
+
+                continue
+            }
+
+            when (parser.currentName) {
+                "timestamp" -> timestampEnd = parser.valueAsLong
+                "avgPlayerCount" -> numPlayersEnd = parser.valueAsInt
+            }
+        }
+
+        return fragments
+    }
+
     private fun getNumCores(proportion: Double) : Int {
         return when {
-            proportion > 0.75 -> 8
-            proportion > 0.5 -> 4
-            proportion > 0.25 -> 2
+            proportion > 0.75 -> maxCores
+            proportion > 0.5 -> maxCores/2
+            proportion > 0.25 -> maxCores/4
             else -> 1
+        }
+    }
+
+    private fun getUsage(gameType: GameType, numPlayers: Int, singlePlayerUsage: Double) : Double {
+        return when (gameType) {
+            GameType.MMOG -> singlePlayerUsage * numPlayers
+            GameType.FPS -> Math.pow(singlePlayerUsage, numPlayers.toDouble())
+            GameType.RTS -> singlePlayerUsage*numPlayers + Math.pow(numPlayers.toDouble(), 2.0)
         }
     }
 
@@ -463,7 +537,6 @@ class MyTest {
             .setAllowComments(true)
             .setUseHeader(true)
             .build()
-
 
 
     /**
