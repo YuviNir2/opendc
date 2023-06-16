@@ -91,7 +91,7 @@ class MyTest {
     @Test
     fun testSmall() = runSimulation {
         val seed = 1L
-        val topology = createTopology("single")
+        val topology = createTopology("topology")
         val workload = getWorkload("yuvi-trace")
         val monitor = monitor
 
@@ -462,6 +462,7 @@ class MyTest {
     }
 
     private class FragmentBuilder {
+
         /**
          * The total load of the trace.
          */
