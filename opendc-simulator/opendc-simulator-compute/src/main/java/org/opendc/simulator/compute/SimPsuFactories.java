@@ -106,10 +106,10 @@ public class SimPsuFactories {
         }
 
         @Override
-        InPort getNicPower(int id, org.opendc.simulator.compute.model.NetworkAdapter model) {
-            final InPort port = stage.getInlet("eth" + id);
+        InPort getNicPower(int id, org.opendc.simulator.compute.model.NetworkAdapter model, InPort port) {
+            final InPort newPort = stage.getInlet("eth" + id);
             port.setMask(true);
-            return port;
+            return newPort;
         }
 
         @Override
@@ -217,11 +217,11 @@ public class SimPsuFactories {
         }
 
         @Override
-        InPort getNicPower(int id, org.opendc.simulator.compute.model.NetworkAdapter model) {
+        InPort getNicPower(int id, org.opendc.simulator.compute.model.NetworkAdapter model, InPort port) {
             maxBandwidth += model.getBandwidth();
-            System.out.println("getNicPower maxBandwidth=" + maxBandwidth + " model.getBandwidth()=" + model.getBandwidth());
+//            System.out.println("getNicPower maxBandwidth=" + maxBandwidth + " model.getBandwidth()=" + model.getBandwidth());
 
-            final InPort port = stage.getInlet("eth" + id);
+//            final InPort port = stage.getInlet("eth" + id);
             port.setHandler(ethHandler);
             return port;
         }
@@ -238,9 +238,9 @@ public class SimPsuFactories {
             updateEnergyUsage(now);
 
             double usage = model.computePower(totalUsage / targetFreq);
-//            double networkUsage = networkModel.computePower(totalBandwidth / maxBandwidth);
-            System.out.println("SimPsuFactories onUpdate usage=" + usage + " totalUsage=" + totalUsage + " targetFreq=" + targetFreq);
-//            System.out.println("SimPsuFactories onUpdate networkUsage=" + networkUsage + " totalBandwidth=" + totalBandwidth + " maxBandwidth=" + maxBandwidth);
+            double networkUsage = networkModel.computePower(totalBandwidth / maxBandwidth);
+            System.out.print("SimPsuFactories usage=" + usage + " totalUsage=" + totalUsage + " targetFreq=" + targetFreq);
+            System.out.println(" networkUsage=" + networkUsage + " totalBandwidth=" + totalBandwidth + " maxBandwidth=" + maxBandwidth);
 //            System.out.println("Pushing powerUsage=" + (usage) + " what's outPort? " + out.getName());
             out.push((float) usage);
             powerUsage = usage;

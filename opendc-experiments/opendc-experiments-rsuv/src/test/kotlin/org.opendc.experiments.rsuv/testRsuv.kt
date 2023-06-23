@@ -107,7 +107,7 @@ class MyTest {
         }
 
         println(
-            "Scheduler \n" +
+            "\nScheduler \n" +
                 "Success=${monitor.attemptsSuccess}\n" +
 //                "Failure=${monitor.attemptsFailure}\n" +
 //                "Error=${monitor.attemptsError}\n" +
