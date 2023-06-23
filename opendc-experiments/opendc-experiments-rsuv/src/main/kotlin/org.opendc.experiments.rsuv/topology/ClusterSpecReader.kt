@@ -71,9 +71,9 @@ class ClusterSpecReader {
                 entry.cpuCount,
                 entry.cpuSpeed * 1000, // Convert to MHz
                 entry.memCapacity * 1000, // Convert to MiB
+                entry.nicCount,
+                entry.bandwidthPerNic,
                 entry.hostCount,
-                entry.memCapacityPerHost * 1000,
-                entry.cpuCountPerHost
             )
             result.add(def)
         }
@@ -92,12 +92,12 @@ class ClusterSpecReader {
         val cpuSpeed: Double,
         @JsonProperty("Memory")
         val memCapacity: Double,
+        @JsonProperty("NICs")
+        val nicCount: Int,
+        @JsonProperty("BandwidthPerNic")
+        val bandwidthPerNic: Double,
         @JsonProperty("numberOfHosts")
-        val hostCount: Int,
-        @JsonProperty("memoryCapacityPerHost")
-        val memCapacityPerHost: Double,
-        @JsonProperty("coreCountPerHost")
-        val cpuCountPerHost: Int
+        val hostCount: Int
     )
 
     companion object {
@@ -110,9 +110,9 @@ class ClusterSpecReader {
             .addColumn("Cores", CsvSchema.ColumnType.NUMBER)
             .addColumn("Speed", CsvSchema.ColumnType.NUMBER)
             .addColumn("Memory", CsvSchema.ColumnType.NUMBER)
+            .addColumn("NICs", CsvSchema.ColumnType.NUMBER)
+            .addColumn("BandwidthPerNic", CsvSchema.ColumnType.NUMBER)
             .addColumn("numberOfHosts", CsvSchema.ColumnType.NUMBER)
-            .addColumn("memoryCapacityPerHost", CsvSchema.ColumnType.NUMBER)
-            .addColumn("coreCountPerHost", CsvSchema.ColumnType.NUMBER)
             .setAllowComments(true)
             .setColumnSeparator(';')
             .setUseHeader(true)

@@ -38,7 +38,7 @@ public final class OutPort implements Outlet {
 
     private boolean mask;
 
-    InPort input;
+    public InPort input;
     private OutHandler handler = OutHandlers.noop();
     private final String name;
     private final FlowStage stage;
@@ -130,6 +130,7 @@ public final class OutPort implements Outlet {
      * @param rate The rate of the flow to push.
      */
     public void push(float rate) {
+        System.out.println("OutPort push name=" + this.getName() + " rate=" + rate + " InPort name=" + input.getName());
         demand = rate;
         InPort input = this.input;
 
@@ -180,6 +181,7 @@ public final class OutPort implements Outlet {
      * This method is invoked when the outlet is connected to an inlet.
      */
     void connect() {
+        System.out.println("OutPort connect name " + this.name + " InPort name " + input.getName());
         input.push(demand);
     }
 

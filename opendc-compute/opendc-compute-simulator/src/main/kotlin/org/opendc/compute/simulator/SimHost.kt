@@ -41,6 +41,7 @@ import org.opendc.simulator.compute.SimMachineContext
 import org.opendc.simulator.compute.kernel.SimHypervisor
 import org.opendc.simulator.compute.model.MachineModel
 import org.opendc.simulator.compute.model.MemoryUnit
+import org.opendc.simulator.compute.model.NetworkAdapter
 import org.opendc.simulator.compute.model.ProcessingNode
 import org.opendc.simulator.compute.model.ProcessingUnit
 import org.opendc.simulator.compute.workload.SimWorkload
@@ -165,6 +166,7 @@ public class SimHost(
                 machine
             )
 
+            println("SimHost spawn server " + server.name)
             _guests.add(newGuest)
             newGuest
         }
@@ -176,6 +178,7 @@ public class SimHost(
 
     override fun start(server: Server) {
         val guest = requireNotNull(guests[server]) { "Unknown server ${server.uid} at host $uid" }
+        println("SimHost starting Guest")
         guest.start()
     }
 
@@ -295,6 +298,7 @@ public class SimHost(
      * Launch the hypervisor.
      */
     private fun launch() {
+        println("Launching Hypervisor")
         check(ctx == null) { "Concurrent hypervisor running" }
 
         val bootWorkload = bootModel.get()
@@ -347,7 +351,13 @@ public class SimHost(
         val processingNode = ProcessingNode(originalNode.vendor, originalNode.modelName, originalNode.architecture, cpuCount)
         val processingUnits = (0 until cpuCount).map { ProcessingUnit(processingNode, it, cpuCapacity) }
         val memoryUnits = listOf(MemoryUnit("Generic", "Generic", 3200.0, memorySize))
-
+        // TODO: make this safe in case NICs not provided
+//        val nicBandwidth = machine.model.network.get(0).bandwidth
+        // TODO: populate nicCount accordingly
+//        println("SimHost Flavor.toMachineModel() nicCount=$nicCount nicBandwidth=$nicBandwidth")
+//        val networkUnits = listOf(NetworkAdapter("Generic", "Generic", nicBandwidth))
+//        val networkUnits = (0 until nicCount).map { NetworkAdapter(originalNic.vendor, originalNic.modelName, originalNic.bandwidth) }
+//        val model = MachineModel(processingUnits, memoryUnits, networkUnits)
         val model = MachineModel(processingUnits, memoryUnits)
         return if (optimize) model.optimize() else model
     }

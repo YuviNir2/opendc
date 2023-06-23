@@ -132,6 +132,7 @@ public final class ServiceServer implements Server {
 
     @Override
     public void start() {
+        System.out.println("ServiceServer state "+ state);
         switch (state) {
             case PROVISIONING:
                 LOGGER.debug("User tried to start server but request is already pending: doing nothing");
@@ -145,6 +146,7 @@ public final class ServiceServer implements Server {
                 LOGGER.info("User requested to start server {}", uid);
                 setState(ServerState.PROVISIONING);
                 assert request == null : "Scheduling request already active";
+                System.out.println("ServiceServer scheduling server "+ state);
                 request = service.schedule(this);
                 break;
         }

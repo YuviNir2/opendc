@@ -72,6 +72,10 @@ public final class MachineModel {
         this(cpus, memory, Collections.emptyList(), Collections.emptyList());
     }
 
+    public MachineModel(Iterable<ProcessingUnit> cpus, Iterable<MemoryUnit> memory, Iterable<NetworkAdapter> network) {
+        this(cpus, memory, network, Collections.emptyList());
+    }
+
     /**
      * Optimize the [MachineModel] by merging all resources of the same type into a single resource with the combined
      * capacity. Such configurations can be simulated more efficiently by OpenDC.

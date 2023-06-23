@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import org.opendc.simulator.compute.device.SimPeripheral;
 import org.opendc.simulator.compute.model.MachineModel;
+import org.opendc.simulator.compute.model.NetworkAdapter;
 import org.opendc.simulator.compute.model.ProcessingUnit;
 import org.opendc.simulator.compute.workload.SimWorkload;
 import org.opendc.simulator.flow2.FlowGraph;
@@ -57,8 +58,8 @@ public final class SimBareMetalMachine extends SimAbstractMachine {
      * The resources of this machine.
      */
     private final List<Cpu> cpus;
-
     private final Memory memory;
+//    private final List<Nic> net;
     private final List<NetworkAdapter> net;
     private final List<StorageDevice> disk;
 
@@ -78,6 +79,7 @@ public final class SimBareMetalMachine extends SimAbstractMachine {
         int cpuIndex = 0;
         final ArrayList<Cpu> cpus = new ArrayList<>();
         this.cpus = cpus;
+//        System.out.println("cpu list size " + model.getCpus().size());
         for (ProcessingUnit cpu : model.getCpus()) {
             cpus.add(new Cpu(psu, cpu, cpuIndex++));
         }
@@ -85,8 +87,13 @@ public final class SimBareMetalMachine extends SimAbstractMachine {
         this.memory = new Memory(graph, model.getMemory());
 
         int netIndex = 0;
+//        final ArrayList<Nic> net = new ArrayList<>();
         final ArrayList<NetworkAdapter> net = new ArrayList<>();
         this.net = net;
+//        System.out.println("network size " + model.getNetwork().size());
+//        for (org.opendc.simulator.compute.model.NetworkAdapter adapter : model.getNetwork()) {
+//            net.add(new Nic(graph, adapter, netIndex++, psu));
+//        }
         for (org.opendc.simulator.compute.model.NetworkAdapter adapter : model.getNetwork()) {
             net.add(new NetworkAdapter(graph, adapter, netIndex++));
         }
@@ -206,6 +213,7 @@ public final class SimBareMetalMachine extends SimAbstractMachine {
         private final List<Cpu> cpus;
         private final Memory memory;
         private final List<NetworkAdapter> net;
+//        private final List<Nic> net;
         private final List<StorageDevice> disk;
 
         private Context(
@@ -299,6 +307,18 @@ public final class SimBareMetalMachine extends SimAbstractMachine {
         @Override
         public String toString() {
             return "SimBareMetalMachine.Cpu[model=" + model + "]";
+        }
+    }
+
+    private static final class Nic extends SimAbstractMachine.NetworkAdapter {
+        private final SimPsu psu;
+        private final InPort port;
+
+        public Nic(FlowGraph graph, org.opendc.simulator.compute.model.NetworkAdapter model, int index, SimPsu psu) {
+            super(graph, model, index);
+            this.psu = psu;
+            this.port = this.psu.getNicPower(index, model);
+            this.port.pull((float) model.getBandwidth());
         }
     }
 }

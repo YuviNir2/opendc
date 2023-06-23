@@ -188,6 +188,7 @@ public final class FlowStage {
         int state = flags & STAGE_STATE;
 
         if (state == STAGE_ACTIVE) {
+//            System.out.println("In FlowStage onUpdate");
             doUpdate(now, flags);
         } else if (state == STAGE_PENDING) {
             doStart(now, flags);

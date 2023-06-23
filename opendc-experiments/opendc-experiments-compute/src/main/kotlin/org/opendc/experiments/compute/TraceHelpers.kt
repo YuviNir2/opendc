@@ -90,6 +90,7 @@ public suspend fun ComputeService.replay(
                 }
 
                 launch {
+                    println("TraceHelpers launch " + entry.name + " " + entry.cpuCount + " " + entry.cpuCapacity + " " + entry.memCapacity)
                     val server = client.newServer(
                         entry.name,
                         image,

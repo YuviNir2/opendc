@@ -147,6 +147,7 @@ public final class FlowEngine implements Runnable {
      * Run all the enqueued actions for the specified timestamp (<code>now</code>).
      */
     private void doRunEngine(long now) {
+        System.out.println("DOING THE ENGINEEEE");
         final FlowStageQueue queue = this.queue;
         final FlowTimerQueue timerQueue = this.timerQueue;
 
@@ -160,7 +161,6 @@ public final class FlowEngine implements Runnable {
                 if (ctx == null) {
                     break;
                 }
-
                 ctx.onUpdate(now);
             }
 
@@ -170,7 +170,6 @@ public final class FlowEngine implements Runnable {
                 if (ctx == null) {
                     break;
                 }
-
                 ctx.onUpdate(now);
             }
         } finally {

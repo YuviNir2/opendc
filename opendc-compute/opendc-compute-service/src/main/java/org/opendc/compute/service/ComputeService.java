@@ -235,6 +235,7 @@ public final class ComputeService implements AutoCloseable {
         }
 
         HostView hv = new HostView(host);
+        System.out.println("What HostView are we seeing? " + hv.getProvisionedCores() + " " + hv.getAvailableMemory() + " " + hv.instanceCount);
         HostModel model = host.getModel();
 
         maxCores = Math.max(maxCores, model.cpuCount());
@@ -353,6 +354,7 @@ public final class ComputeService implements AutoCloseable {
      * Run a single scheduling iteration.
      */
     private void doSchedule() {
+        System.out.println("ComputeService doSchedule queue size " + queue.size());
         while (!queue.isEmpty()) {
             SchedulingRequest request = queue.peek();
 
@@ -366,6 +368,7 @@ public final class ComputeService implements AutoCloseable {
             final ServiceFlavor flavor = server.getFlavor();
             final HostView hv = scheduler.select(request.server);
 
+            System.out.println("ComputeService doSchedule HostView " + hv.getHost().getName() + " "+ hv.provisionedCores + " " + hv.getAvailableMemory());
             if (hv == null || !hv.getHost().canFit(server)) {
                 LOGGER.trace(
                         "Server {} selected for scheduling but no capacity available for it at the moment", server);
@@ -392,6 +395,7 @@ public final class ComputeService implements AutoCloseable {
             serversPending--;
 
             LOGGER.info("Assigned server {} to host {}", server, host);
+            System.out.println("Assigned server " + server.getName() + " to host " +  host.getName());
 
             try {
                 server.host = host;
@@ -483,13 +487,14 @@ public final class ComputeService implements AutoCloseable {
                 @NotNull String name,
                 int cpuCount,
                 long memorySize,
+                int nicCount,
                 @NotNull Map<String, String> labels,
                 @NotNull Map<String, ?> meta) {
             checkOpen();
 
             final ComputeService service = this.service;
             UUID uid = new UUID(service.clock.millis(), service.random.nextLong());
-            ServiceFlavor flavor = new ServiceFlavor(service, uid, name, cpuCount, memorySize, labels, meta);
+            ServiceFlavor flavor = new ServiceFlavor(service, uid, name, cpuCount, memorySize, nicCount, labels, meta);
 
             service.flavorById.put(uid, flavor);
             service.flavors.add(flavor);
@@ -552,6 +557,7 @@ public final class ComputeService implements AutoCloseable {
             service.servers.add(server);
 
             if (start) {
+                System.out.println("ComputeService Starting server " + server.getName());
                 server.start();
             }
 

@@ -78,6 +78,7 @@ public class Provisioner(dispatcher: Dispatcher, seed: Long) : AutoCloseable {
      * @param steps The steps to apply to the environment.
      */
     public fun runSteps(vararg steps: ProvisioningStep) {
+        System.out.println("Provisioner runSteps " + steps.size)
         val ctx = context
         val stack = stack
         for (step in steps) {

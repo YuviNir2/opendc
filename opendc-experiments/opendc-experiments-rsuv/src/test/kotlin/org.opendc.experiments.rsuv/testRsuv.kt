@@ -49,6 +49,7 @@ import org.opendc.experiments.compute.topology.HostSpec
 import org.opendc.experiments.compute.trace
 import org.opendc.experiments.provisioner.Provisioner
  import org.opendc.simulator.compute.power.CpuPowerModels
+ import org.opendc.simulator.compute.power.NetworkPowerModels
  import org.opendc.simulator.compute.workload.SimTrace
 import org.opendc.simulator.kotlin.runSimulation
 import java.io.File
@@ -149,7 +150,7 @@ class MyTest {
      */
     private fun createTopology(name: String = "topology"): List<HostSpec> {
         val stream = checkNotNull(object {}.javaClass.getResourceAsStream("/env/$name.txt"))
-        return stream.use { clusterTopology(stream, CpuPowerModels.linear(350.0, 200.0)) }
+        return stream.use { clusterTopology(stream, CpuPowerModels.linear(350.0, 200.0), NetworkPowerModels.linear(50.0, 10.0)) }
     }
 
     class TestComputeMonitor : ComputeMonitor {
@@ -281,7 +282,6 @@ class MyTest {
 //                println("TimestampEnd=$timestampEnd Number of VM=$numVms")
                 for(i in 1..numVms) {
                     val builder = fragments.computeIfAbsent(i) { FragmentBuilder() }
-
                     if (remainingPlayers > maxNumPlayers) {
                         val usage = getUsage(gameType, maxNumPlayers, singlePlayerUsage)
                         builder.add(timestampStart, timestampEnd, usage, maxCores)
@@ -290,17 +290,16 @@ class MyTest {
                     else {
                         val usage = getUsage(gameType, remainingPlayers, singlePlayerUsage)
                         val cores = getNumCores(remainingPlayers.toDouble()/maxNumPlayers)
-//                        println("remainingPlayers= $remainingPlayers\n" +
-//                            "semi usage= $usage\n" +
-//                            "semi cores= $cores")
+                        println("remainingPlayers= $remainingPlayers\n" +
+                            "semi usage= $usage\n")
                         builder.add(timestampStart, timestampEnd, usage, cores)
                     }
                 }
 
-//                println("NUM PLAYERS FUNCTION\n" +
-//                    "numPlayersEnd $numPlayersEnd\n"+
-//                    "timestampStart $timestampStart\n" +
-//                    "timestampEnd $timestampEnd\n")
+                println("NUM PLAYERS FUNCTION\n" +
+                    "numPlayersEnd $numPlayersEnd\n"+
+                    "timestampStart $timestampStart\n" +
+                    "timestampEnd $timestampEnd\n")
 
                 timestampStart = timestampEnd
                 timestampEnd = 0L
@@ -407,15 +406,15 @@ class MyTest {
                 val builder = fragments.getValue(id)
                 val totalLoad = builder.totalLoad
                 val uid = UUID.nameUUIDFromBytes("$id-${counter++}".toByteArray())
-//                println("adding VM:\n" +
-//                    "UID $uid\n" +
-//                    "ID $id\n" +
-//                    "cpuCount $cpuCount\n" +
-//                    "cpuCapacity $cpuCapacity\n" +
-//                    "memCapacity $memCapacity\n" +
-//                    "totalLoad $totalLoad\n" +
-//                    "startTime $startTime\n" +
-//                    "stopTime $stopTime\n")
+                println("adding VM:\n" +
+                    "UID $uid\n" +
+                    "ID $id\n" +
+                    "cpuCount $cpuCount\n" +
+                    "cpuCapacity $cpuCapacity\n" +
+                    "memCapacity $memCapacity\n" +
+                    "totalLoad $totalLoad\n" +
+                    "startTime $startTime\n" +
+                    "stopTime $stopTime\n")
                 vms.add(
                     VirtualMachine(
                         uid,

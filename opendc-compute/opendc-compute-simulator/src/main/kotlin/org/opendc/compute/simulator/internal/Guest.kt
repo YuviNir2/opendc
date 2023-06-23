@@ -61,6 +61,7 @@ internal class Guest(
      * Start the guest.
      */
     fun start() {
+        println("Guest start state $state")
         when (state) {
             ServerState.TERMINATED, ServerState.ERROR -> {
                 LOGGER.info { "User requested to start server ${server.uid}" }
@@ -165,6 +166,7 @@ internal class Guest(
      * Launch the guest on the simulated
      */
     private fun doStart() {
+        println("Guest doStart server " + server.name)
         assert(ctx == null) { "Concurrent job running" }
 
         onStart()

@@ -106,6 +106,7 @@ public final class MaxMinFlowMultiplexer implements FlowMultiplexer, FlowStageLo
 
     @Override
     public long onUpdate(FlowStage ctx, long now) {
+        System.out.println("MaxMinFlowMultiplexer onUpdate demand=" + this.demand + " this.rate=" + this.rate);
         float capacity = this.capacity;
         float demand = this.demand;
         float rate = demand;
@@ -196,6 +197,7 @@ public final class MaxMinFlowMultiplexer implements FlowMultiplexer, FlowStageLo
      * Helper function to redistribute the specified capacity across the inlets.
      */
     private static float redistributeCapacity(InPort[] inlets, long[] inputs, float[] rates, float capacity) {
+        System.out.println("MaxMinFlowMultiplexer redistributeCapacity inlets.size " + inlets.length + " inputs.size " + inputs.length + " rates.size " + rates.length + " capacity " + capacity);
         // If the demand is higher than the capacity, we need use max-min fair sharing to distribute the
         // constrained capacity across the inputs.
         for (int i = 0; i < inputs.length; i++) {
@@ -255,6 +257,7 @@ public final class MaxMinFlowMultiplexer implements FlowMultiplexer, FlowStageLo
         @Override
         public void onPush(InPort port, float demand) {
             MaxMinFlowMultiplexer.this.demand += -port.getDemand() + demand;
+            System.out.println("MaxMinFlowMultiplexer onPush port.name=" + port.getName() + " demand=" +demand);
             rates[port.getId()] = demand;
         }
 

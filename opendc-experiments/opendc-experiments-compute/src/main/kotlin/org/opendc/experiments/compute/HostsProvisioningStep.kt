@@ -51,7 +51,9 @@ public class HostsProvisioningStep internal constructor(
         val hosts = mutableSetOf<SimHost>()
 
         for (spec in specs) {
+            println("HostsProvisioningStep apply specs " + specs.size + " " + spec.name +" " + spec.model)
             val machine = SimBareMetalMachine.create(graph, spec.model, spec.psuFactory)
+            println("Finished creating machine in HostsProvisioningStep")
             val hypervisor = SimHypervisor.create(spec.multiplexerFactory, SplittableRandom(ctx.seeder.nextLong()))
 
             val host = SimHost(

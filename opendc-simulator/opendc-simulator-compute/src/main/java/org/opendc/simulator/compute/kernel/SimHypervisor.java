@@ -45,6 +45,7 @@ import org.opendc.simulator.compute.kernel.interference.VmInterferenceDomain;
 import org.opendc.simulator.compute.kernel.interference.VmInterferenceMember;
 import org.opendc.simulator.compute.kernel.interference.VmInterferenceProfile;
 import org.opendc.simulator.compute.model.MachineModel;
+import org.opendc.simulator.compute.model.NetworkAdapter;
 import org.opendc.simulator.compute.model.ProcessingUnit;
 import org.opendc.simulator.compute.workload.SimWorkload;
 import org.opendc.simulator.flow2.FlowGraph;
@@ -226,6 +227,7 @@ public final class SimHypervisor implements SimWorkload {
 
     @Override
     public void onStart(SimMachineContext ctx) {
+        System.out.println("SimHypervisor onStart "+ ctx.getNetworkInterfaces());
         final Context context = new Context(ctx, muxFactory, scalingGovernorFactory, counters);
         context.start();
         activeContext = context;
@@ -302,8 +304,15 @@ public final class SimHypervisor implements SimWorkload {
             final FlowMultiplexer multiplexer = this.multiplexer;
 
             for (SimProcessingUnit cpu : ctx.getCpus()) {
+                System.out.println("SimHypervisor start() graph.connect in for loop cpu " + cpu.toString());
                 graph.connect(multiplexer.newOutput(), cpu.getInput());
             }
+
+//            for (SimNetworkInterface net : ctx.getNetworkInterfaces()) {
+//                System.out.println("SimHypervisor start() graph.connect in for loop net " + net.toString());
+//                // TODO: figure out if the Inlet it's connecting to is ok or not
+//                graph.connect(multiplexer.newOutput(), net.getTx());
+//            }
 
             for (ScalingGovernor governor : scalingGovernors) {
                 governor.onStart();
@@ -345,6 +354,7 @@ public final class SimHypervisor implements SimWorkload {
                 float capacity = previousCapacity;
 
                 final double factor = this.d * delta;
+//                System.out.println("SimHypervisor updateCounters now=" +now + " demand="+demand +" rate="+rate+ " capacity="+capacity +" factor="+factor);
 
                 counters.cpuActiveTime += Math.round(rate * factor);
                 counters.cpuIdleTime += Math.round((capacity - rate) * factor);
@@ -361,6 +371,7 @@ public final class SimHypervisor implements SimWorkload {
 
         @Override
         public long onUpdate(FlowStage ctx, long now) {
+            System.out.println("OnUpdate in SimHypervisor");
             updateCounters(now);
 
             final FlowMultiplexer multiplexer = this.multiplexer;
@@ -369,6 +380,7 @@ public final class SimHypervisor implements SimWorkload {
             float demand = multiplexer.getDemand();
             float rate = multiplexer.getRate();
             float capacity = multiplexer.getCapacity();
+            System.out.println("OnUpdate in SimHypervisor demand " + demand + " capacity "  + capacity + " rate " + rate);
 
             this.previousDemand = demand;
             this.previousRate = rate;
@@ -582,6 +594,8 @@ public final class SimHypervisor implements SimWorkload {
 
             final MachineModel model = machine.getModel();
             final List<ProcessingUnit> cpuModels = model.getCpus();
+//            final List<NetworkAdapter> netModels = model.getNetwork();
+//            final Inlet[] muxInlets = new Inlet[cpuModels.size() + netModels.size()];
             final Inlet[] muxInlets = new Inlet[cpuModels.size()];
             final ArrayList<VCpu> cpus = new ArrayList<>();
 
@@ -590,7 +604,9 @@ public final class SimHypervisor implements SimWorkload {
 
             float capacity = 0.f;
 
+            System.out.println("SimHypervisor VmContext cpuModels.size() " + cpuModels.size());
             for (int i = 0; i < cpuModels.size(); i++) {
+                System.out.println("SimHypervisor cpuModel " + cpuModels.get(i).toString());
                 final Inlet muxInlet = multiplexer.newInput();
                 muxInlets[i] = muxInlet;
 
@@ -616,9 +632,33 @@ public final class SimHypervisor implements SimWorkload {
             int netIndex = 0;
             final ArrayList<SimAbstractMachine.NetworkAdapter> net = new ArrayList<>();
             this.net = net;
+            System.out.println("SimHypervisor net size " + model.getNetwork().size());
             for (org.opendc.simulator.compute.model.NetworkAdapter adapter : model.getNetwork()) {
                 net.add(new SimAbstractMachine.NetworkAdapter(graph, adapter, netIndex++));
             }
+//            for (int i = cpuModels.size(); i < (netModels.size()+cpuModels.size()); i++) {
+//                System.out.println("SimHypervisor netModel " + netModels.get(i-cpuModels.size()).toString());
+//                final Inlet muxInlet = multiplexer.newInput();
+//                muxInlets[i] = muxInlet;
+//
+//                final InPort input = stage.getInlet("nic" + i);
+//                final OutPort output = stage.getOutlet("mux" + i);
+//
+//                final Handler handler = new Handler(this, input, output);
+//                input.setHandler(handler);
+//                output.setHandler(handler);
+//
+//                final NetworkAdapter netModel = netModels.get(i-cpuModels.size());
+//                capacity += netModel.getBandwidth();
+//
+//                final SimAbstractMachine.NetworkAdapter nic = new SimAbstractMachine.NetworkAdapter(graph, netModel, i- cpuModels.size());
+//
+//                net.add(nic);
+//                System.out.println("SimHypervisor NIC Gonna PULL " + netModel.getBandwidth() + "\n" + netModel.toString());
+//                input.pull((float) netModel.getBandwidth());
+//
+//                graph.connect(output, muxInlet);
+//            }
 
             int diskIndex = 0;
             final ArrayList<SimAbstractMachine.StorageDevice> disk = new ArrayList<>();
@@ -688,6 +728,7 @@ public final class SimHypervisor implements SimWorkload {
 
         @Override
         public long onUpdate(FlowStage ctx, long now) {
+            System.out.println("SimHypervisor onUpdate");
             float usage = 0.f;
             for (Inlet inlet : muxInlets) {
                 usage += ((InPort) inlet).getRate();
@@ -755,6 +796,7 @@ public final class SimHypervisor implements SimWorkload {
             this.model = model;
             this.input = input;
 
+            System.out.println("SimHypervisor VCpu Gonna PULL " + model.getFrequency() + "\n" + model.toString());
             input.pull((float) model.getFrequency());
         }
 
@@ -808,11 +850,14 @@ public final class SimHypervisor implements SimWorkload {
             this.output = output;
         }
 
+        //TODO: Figure out how to get the network usage to be called with a certain demand
         @Override
         public void onPush(InPort port, float demand) {
             context.demand += -port.getDemand() + demand;
+            System.out.println("onPush in Hypervisor context.demand " + context.demand + " port.getName() " + port.getName() + " demand " + demand + " -port.getDemand() " + -port.getDemand());
 
             output.push(demand);
+//            System.out.println("onPush in Hypervisor AFTER OUTPUT.PUSH " + output.getName() + " output.Capacity " + output.getCapacity());
         }
 
         @Override
@@ -830,6 +875,7 @@ public final class SimHypervisor implements SimWorkload {
         @Override
         public void onPull(OutPort port, float capacity) {
             context.capacity += -port.getCapacity() + capacity;
+//            System.out.println("onPush in Hypervisor context.demand " + context.demand + " demand " + capacity + " -port.getDemand() " + -port.getDemand());
 
             input.pull(capacity);
         }

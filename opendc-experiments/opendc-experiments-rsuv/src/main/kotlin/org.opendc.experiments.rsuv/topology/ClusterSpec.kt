@@ -40,7 +40,7 @@ public data class ClusterSpec(
     val cpuCount: Int,
     val cpuSpeed: Double,
     val memCapacity: Double,
-    val hostCount: Int,
-    val memCapacityPerHost: Double,
-    val cpuCountPerHost: Int
+    val nicCount: Int,
+    val bandwidthPerNic: Double,
+    val hostCount: Int
 )

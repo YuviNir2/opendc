@@ -26,6 +26,8 @@ import java.time.InstantSource;
 import org.jetbrains.annotations.NotNull;
 import org.opendc.simulator.compute.model.ProcessingUnit;
 import org.opendc.simulator.compute.power.CpuPowerModel;
+import org.opendc.simulator.compute.power.NetworkPowerModel;
+import org.opendc.simulator.compute.power.NetworkPowerModels;
 import org.opendc.simulator.flow2.FlowGraph;
 import org.opendc.simulator.flow2.FlowStage;
 import org.opendc.simulator.flow2.FlowStageLogic;
@@ -59,6 +61,10 @@ public class SimPsuFactories {
      */
     public static SimPsuFactory simple(CpuPowerModel model) {
         return (machine, graph) -> new SimplePsu(graph, model);
+    }
+
+    public static SimPsuFactory simple(CpuPowerModel model, NetworkPowerModel networkModel) {
+        return (machine, graph) -> new SimplePsu(graph, model, networkModel);
     }
 
     /**
@@ -99,6 +105,13 @@ public class SimPsuFactories {
         }
 
         @Override
+        InPort getNicPower(int id, org.opendc.simulator.compute.model.NetworkAdapter model) {
+            final InPort port = stage.getInlet("eth" + id);
+            port.setMask(true);
+            return port;
+        }
+
+        @Override
         public long onUpdate(FlowStage ctx, long now) {
             return Long.MAX_VALUE;
         }
@@ -117,8 +130,11 @@ public class SimPsuFactories {
         private final FlowStage stage;
         private final OutPort out;
         private final CpuPowerModel model;
+        private final NetworkPowerModel networkModel;
         private final InstantSource clock;
 
+        private double maxBandwidth;
+        private double totalBandwidth;
         private double targetFreq;
         private double totalUsage;
         private long lastUpdate;
@@ -126,10 +142,25 @@ public class SimPsuFactories {
         private double powerUsage;
         private double energyUsage;
 
+        private final InHandler ethHandler = new InHandler() {
+            @Override
+            public void onPush(InPort port, float demand) {
+                totalBandwidth += -port.getDemand() + demand;
+                System.out.println("ethhandler Now " + clock.millis() + " totalBandwidth "+ totalBandwidth + " demand= " + demand + " -port.getDemand() " + -port.getDemand());
+            }
+
+            @Override
+            public void onUpstreamFinish(InPort port, Throwable cause) {
+                totalBandwidth -= port.getDemand();
+            }
+        };
+
         private final InHandler handler = new InHandler() {
             @Override
             public void onPush(InPort port, float demand) {
+                System.out.println("Fuckkkkkkkk OnPush");
                 totalUsage += -port.getDemand() + demand;
+                System.out.println("SimPsuFactories onPush=" + clock.millis() + " totalUsage="+ totalUsage + " demand=" + demand + " -port.getDemand()=" + -port.getDemand());
             }
 
             @Override
@@ -141,6 +172,18 @@ public class SimPsuFactories {
         SimplePsu(FlowGraph graph, CpuPowerModel model) {
             this.stage = graph.newStage(this);
             this.model = model;
+            this.networkModel = NetworkPowerModels.linear(50.0, 10.0);
+            this.clock = graph.getEngine().getClock();
+            this.out = stage.getOutlet("out");
+            this.out.setMask(true);
+
+            lastUpdate = graph.getEngine().getClock().millis();
+        }
+
+        SimplePsu(FlowGraph graph, CpuPowerModel model, NetworkPowerModel networkModel) {
+            this.stage = graph.newStage(this);
+            this.model = model;
+            this.networkModel = networkModel;
             this.clock = graph.getEngine().getClock();
             this.out = stage.getOutlet("out");
             this.out.setMask(true);
@@ -167,9 +210,20 @@ public class SimPsuFactories {
         @Override
         InPort getCpuPower(int id, ProcessingUnit model) {
             targetFreq += model.getFrequency();
+            System.out.println("SimPsuFactories GetCpuPower id=" + id + " targetFreq=" + targetFreq + " model.getFrequency()=" + model.getFrequency());
 
             final InPort port = stage.getInlet("cpu" + id);
             port.setHandler(handler);
+            return port;
+        }
+
+        @Override
+        InPort getNicPower(int id, org.opendc.simulator.compute.model.NetworkAdapter model) {
+            maxBandwidth += model.getBandwidth();
+            System.out.println("getNicPower maxBandwidth=" + maxBandwidth + " model.getBandwidth()=" + model.getBandwidth());
+
+            final InPort port = stage.getInlet("eth" + id);
+            port.setHandler(ethHandler);
             return port;
         }
 
@@ -185,7 +239,11 @@ public class SimPsuFactories {
             updateEnergyUsage(now);
 
             double usage = model.computePower(totalUsage / targetFreq);
-            out.push((float) usage);
+            double networkUsage = networkModel.computePower(totalBandwidth / maxBandwidth);
+            System.out.println("SimPsuFactories onUpdate usage=" + usage + " totalUsage=" + totalUsage + " targetFreq=" + targetFreq);
+//            System.out.println("SimPsuFactories onUpdate networkUsage=" + networkUsage + " totalBandwidth=" + totalBandwidth + " maxBandwidth=" + maxBandwidth);
+            System.out.println("Pushing powerUsage=" + (usage) + " what's outPort? " + out.getName() + " what's the destination input? " + out.input);
+            out.push((float) (usage));
             powerUsage = usage;
 
             return Long.MAX_VALUE;

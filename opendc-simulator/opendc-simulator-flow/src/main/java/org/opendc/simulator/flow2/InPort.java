@@ -178,12 +178,14 @@ public final class InPort implements Inlet {
      * @param demand The rate of flow to push.
      */
     void push(float demand) {
+        System.out.println("InPort push name=" + this.name + " demand=" + demand + " this.demand=" + this.demand + " " + handler.getClass());
         // No-op when the rate is unchanged
         if (this.demand == demand) {
             return;
         }
 
         try {
+            System.out.println("Fucking calling the onPush in InPort " + handler.getClass());
             handler.onPush(this, demand);
             this.demand = demand;
 

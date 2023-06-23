@@ -59,6 +59,8 @@ public abstract class SimPsu extends SimPowerInlet {
      */
     abstract InPort getCpuPower(int id, ProcessingUnit model);
 
+    abstract InPort getNicPower(int id, org.opendc.simulator.compute.model.NetworkAdapter model);
+
     /**
      * This method is invoked when the CPU frequency is changed for the specified <code>port</code>.
      *

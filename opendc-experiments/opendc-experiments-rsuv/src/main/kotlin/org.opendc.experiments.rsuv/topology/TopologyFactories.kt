@@ -28,10 +28,13 @@ import org.opendc.experiments.compute.topology.HostSpec
 import org.opendc.simulator.compute.SimPsuFactories
 import org.opendc.simulator.compute.model.MachineModel
 import org.opendc.simulator.compute.model.MemoryUnit
+import org.opendc.simulator.compute.model.NetworkAdapter
 import org.opendc.simulator.compute.model.ProcessingNode
 import org.opendc.simulator.compute.model.ProcessingUnit
 import org.opendc.simulator.compute.power.CpuPowerModel
 import org.opendc.simulator.compute.power.CpuPowerModels
+import org.opendc.simulator.compute.power.NetworkPowerModel
+import org.opendc.simulator.compute.power.NetworkPowerModels
 import java.io.File
 import java.io.InputStream
 import java.util.SplittableRandom
@@ -50,9 +53,10 @@ private val reader = ClusterSpecReader()
 fun clusterTopology(
     file: File,
     powerModel: CpuPowerModel = CpuPowerModels.linear(350.0, 200.0),
+    networkModel: NetworkPowerModel = NetworkPowerModels.linear(50.0, 10.0),
     random: RandomGenerator = SplittableRandom(0)
 ): List<HostSpec> {
-    return clusterTopology(reader.read(file), powerModel, random)
+    return clusterTopology(reader.read(file), powerModel, networkModel, random)
 }
 
 /**
@@ -61,30 +65,32 @@ fun clusterTopology(
 fun clusterTopology(
     input: InputStream,
     powerModel: CpuPowerModel = CpuPowerModels.linear(350.0, 200.0),
+    networkModel: NetworkPowerModel = NetworkPowerModels.linear(50.0, 10.0),
     random: RandomGenerator = SplittableRandom(0)
 ): List<HostSpec> {
-    return clusterTopology(reader.read(input), powerModel, random)
+    return clusterTopology(reader.read(input), powerModel, networkModel, random)
 }
 
 /**
  * Construct a topology from the given list of [clusters].
  */
-fun clusterTopology(clusters: List<ClusterSpec>, powerModel: CpuPowerModel, random: RandomGenerator = SplittableRandom(0)): List<HostSpec> {
-    return clusters.flatMap { it.toHostSpecs(random, powerModel) }
+fun clusterTopology(clusters: List<ClusterSpec>, powerModel: CpuPowerModel, networkModel: NetworkPowerModel, random: RandomGenerator = SplittableRandom(0)): List<HostSpec> {
+    return clusters.flatMap { it.toHostSpecs(random, powerModel, networkModel) }
 }
 
 /**
  * Helper method to convert a [ClusterSpec] into a list of [HostSpec]s.
  */
-private fun ClusterSpec.toHostSpecs(random: RandomGenerator, powerModel: CpuPowerModel): List<HostSpec> {
-    val cpuSpeed = cpuSpeed
-    val memoryPerHost = memCapacityPerHost.roundToLong()
+private fun ClusterSpec.toHostSpecs(random: RandomGenerator, powerModel: CpuPowerModel, networkModel: NetworkPowerModel): List<HostSpec> {
+    val memoryPerHost = (memCapacity/hostCount).roundToLong()
+    val cpuCountPerHost = cpuCount/hostCount
 
     val unknownProcessingNode = ProcessingNode("unknown", "unknown", "unknown", cpuCountPerHost)
     val unknownMemoryUnit = MemoryUnit("unknown", "unknown", -1.0, memoryPerHost)
     val machineModel = MachineModel(
         List(cpuCountPerHost) { coreId -> ProcessingUnit(unknownProcessingNode, coreId, cpuSpeed) },
-        listOf(unknownMemoryUnit)
+        listOf(unknownMemoryUnit),
+        List(nicCount) { _ -> NetworkAdapter("unknown", "unknown", bandwidthPerNic)}
     )
 
     return List(hostCount) {
@@ -93,7 +99,7 @@ private fun ClusterSpec.toHostSpecs(random: RandomGenerator, powerModel: CpuPowe
             "node-$name-$it",
             mapOf("cluster" to id),
             machineModel,
-            SimPsuFactories.simple(powerModel)
+            SimPsuFactories.simple(powerModel, networkModel)
         )
     }
 }
