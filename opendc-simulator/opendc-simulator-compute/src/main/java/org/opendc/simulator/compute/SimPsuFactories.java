@@ -148,6 +148,7 @@ public class SimPsuFactories {
             @Override
             public void onPush(InPort port, float demand) {
                 totalUsage += -port.getDemand() + demand;
+                System.out.println("SimPsuFactories handler Now=" + clock.millis() + " totalUsage="+ totalUsage + " demand=" + demand + " -port.getDemand()=" + -port.getDemand() + " port.name=" + port.getName()+ " port.capacity=" + port.getCapacity());
             }
 
             @Override
@@ -160,7 +161,7 @@ public class SimPsuFactories {
             @Override
             public void onPush(InPort port, float demand) {
                 totalBandwidth += -port.getDemand() + demand;
-                System.out.println("ethhandler Now " + clock.millis() + " totalBandwidth "+ totalBandwidth + " demand= " + demand + " -port.getDemand() " + -port.getDemand());
+                System.out.println("SimPsuFactories ethhandler Now=" + clock.millis() + " totalBandwidth="+ totalBandwidth + " demand=" + demand + " -port.getDemand()=" + -port.getDemand()+ " port.name=" + port.getName() + " port.capacity=" + port.getCapacity());
             }
 
             @Override

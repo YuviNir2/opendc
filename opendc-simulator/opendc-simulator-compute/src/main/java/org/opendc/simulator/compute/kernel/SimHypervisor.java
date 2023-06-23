@@ -22,6 +22,7 @@
 
 package org.opendc.simulator.compute.kernel;
 
+import java.lang.reflect.Array;
 import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -45,6 +46,7 @@ import org.opendc.simulator.compute.kernel.interference.VmInterferenceDomain;
 import org.opendc.simulator.compute.kernel.interference.VmInterferenceMember;
 import org.opendc.simulator.compute.kernel.interference.VmInterferenceProfile;
 import org.opendc.simulator.compute.model.MachineModel;
+import org.opendc.simulator.compute.model.NetworkAdapter;
 import org.opendc.simulator.compute.model.ProcessingUnit;
 import org.opendc.simulator.compute.workload.SimWorkload;
 import org.opendc.simulator.flow2.FlowGraph;
@@ -305,6 +307,11 @@ public final class SimHypervisor implements SimWorkload {
                 graph.connect(multiplexer.newOutput(), cpu.getInput());
             }
 
+            for (SimNetworkInterface nic : ctx.getNetworkInterfaces()) {
+                SimAbstractMachine.NetworkAdapter n = (SimAbstractMachine.NetworkAdapter)nic;
+                graph.connect(multiplexer.newOutput(), n.getInlet());
+            }
+
             for (ScalingGovernor governor : scalingGovernors) {
                 governor.onStart();
             }
@@ -345,7 +352,7 @@ public final class SimHypervisor implements SimWorkload {
                 float capacity = previousCapacity;
 
                 final double factor = this.d * delta;
-
+//                if (demand != 0 || rate != 0) System.out.println("SimHypervisor updateCounters now=" +now + " demand="+demand +" rate="+rate+ " capacity="+capacity +" factor="+factor);
                 counters.cpuActiveTime += Math.round(rate * factor);
                 counters.cpuIdleTime += Math.round((capacity - rate) * factor);
                 counters.cpuStealTime += Math.round((demand - rate) * factor);
@@ -582,7 +589,10 @@ public final class SimHypervisor implements SimWorkload {
 
             final MachineModel model = machine.getModel();
             final List<ProcessingUnit> cpuModels = model.getCpus();
-            final Inlet[] muxInlets = new Inlet[cpuModels.size()];
+            final List<NetworkAdapter> networkModels = model.getNetwork();
+//            final Inlet[] muxInlets = new Inlet[cpuModels.size()];
+            final Inlet[] muxInlets = new Inlet[cpuModels.size() + networkModels.size()];
+
             final ArrayList<VCpu> cpus = new ArrayList<>();
 
             this.muxInlets = muxInlets;
@@ -613,12 +623,27 @@ public final class SimHypervisor implements SimWorkload {
 
             this.memory = new SimAbstractMachine.Memory(graph, model.getMemory());
 
-            int netIndex = 0;
             final ArrayList<SimAbstractMachine.NetworkAdapter> net = new ArrayList<>();
             this.net = net;
-            for (org.opendc.simulator.compute.model.NetworkAdapter adapter : model.getNetwork()) {
-                net.add(new SimAbstractMachine.NetworkAdapter(graph, adapter, netIndex++));
+            for (int i = cpuModels.size(); i < networkModels.size()+cpuModels.size(); i++) {
+                final Inlet muxInlet = multiplexer.newInput();
+                muxInlets[i] = muxInlet;
+                final InPort input = stage.getInlet("nic" + (i - cpuModels.size()));
+                final OutPort output = stage.getOutlet("mux" + i);
+                final Handler handler = new Handler(this, input, output);
+                input.setHandler(handler);
+                output.setHandler(handler);
+                final NetworkAdapter netModel = networkModels.get(i - cpuModels.size());
+                final SimAbstractMachine.NetworkAdapter nic = new SimAbstractMachine.NetworkAdapter(graph, netModel, i-cpuModels.size());
+                net.add(nic);
+                input.pull((float) netModel.getBandwidth());
+
+                graph.connect(output, muxInlet);
             }
+//            int netIndex = 0;
+//            for (org.opendc.simulator.compute.model.NetworkAdapter adapter : model.getNetwork()) {
+//                net.add(new SimAbstractMachine.NetworkAdapter(graph, adapter, netIndex++));
+//            }
 
             int diskIndex = 0;
             final ArrayList<SimAbstractMachine.StorageDevice> disk = new ArrayList<>();

@@ -297,7 +297,7 @@ public abstract class SimAbstractMachine implements SimMachine {
         }
 
         @Override
-        protected Inlet getInlet() {
+        public Inlet getInlet() {
             return rx.getInput();
         }
 
