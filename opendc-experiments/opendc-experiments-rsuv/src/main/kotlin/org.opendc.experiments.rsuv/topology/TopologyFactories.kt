@@ -28,6 +28,7 @@ import org.opendc.experiments.compute.topology.HostSpec
 import org.opendc.simulator.compute.SimPsuFactories
 import org.opendc.simulator.compute.model.MachineModel
 import org.opendc.simulator.compute.model.MemoryUnit
+import org.opendc.simulator.compute.model.NetworkAdapter
 import org.opendc.simulator.compute.model.ProcessingNode
 import org.opendc.simulator.compute.model.ProcessingUnit
 import org.opendc.simulator.compute.power.CpuPowerModel
@@ -78,13 +79,17 @@ fun clusterTopology(clusters: List<ClusterSpec>, powerModel: CpuPowerModel, rand
  */
 private fun ClusterSpec.toHostSpecs(random: RandomGenerator, powerModel: CpuPowerModel): List<HostSpec> {
     val cpuSpeed = cpuSpeed
-    val memoryPerHost = memCapacityPerHost.roundToLong()
+    val cpuCountPerHost = cpuCount/hostCount
+    val memoryPerHost = (memCapacity/hostCount).roundToLong()
 
     val unknownProcessingNode = ProcessingNode("unknown", "unknown", "unknown", cpuCountPerHost)
     val unknownMemoryUnit = MemoryUnit("unknown", "unknown", -1.0, memoryPerHost)
+    // TODO: make safe in case Nic not provided
+    val unknownNetworkUnit = NetworkAdapter("unknown", "unknown", bandWidthPerNic)
     val machineModel = MachineModel(
         List(cpuCountPerHost) { coreId -> ProcessingUnit(unknownProcessingNode, coreId, cpuSpeed) },
-        listOf(unknownMemoryUnit)
+        listOf(unknownMemoryUnit),
+        List(nicCountPerHost) { _ -> unknownNetworkUnit}
     )
 
     return List(hostCount) {

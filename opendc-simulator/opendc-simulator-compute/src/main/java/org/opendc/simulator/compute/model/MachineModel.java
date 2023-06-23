@@ -72,6 +72,10 @@ public final class MachineModel {
         this(cpus, memory, Collections.emptyList(), Collections.emptyList());
     }
 
+    public MachineModel(Iterable<ProcessingUnit> cpus, Iterable<MemoryUnit> memory, Iterable<NetworkAdapter> nics) {
+        this(cpus, memory, nics, Collections.emptyList());
+    }
+
     /**
      * Optimize the [MachineModel] by merging all resources of the same type into a single resource with the combined
      * capacity. Such configurations can be simulated more efficiently by OpenDC.
@@ -94,6 +98,16 @@ public final class MachineModel {
             memorySize += mem.getSize();
         }
         MemoryUnit memoryUnit = new MemoryUnit("Generic", "Generic", 3200.0, memorySize);
+
+        if (net.size() > 0) {
+            double bandwidth = 0.f;
+            for (NetworkAdapter n : net) {
+                bandwidth += n.getBandwidth();
+            }
+            NetworkAdapter originalNic = net.get(0);
+            NetworkAdapter networkUnit = new NetworkAdapter(originalNic.getVendor(), originalNic.getModelName(), bandwidth);
+            return new MachineModel(List.of(processingUnit), List.of(memoryUnit), List.of(networkUnit));
+        }
 
         return new MachineModel(List.of(processingUnit), List.of(memoryUnit));
     }

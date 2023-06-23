@@ -41,6 +41,7 @@ import org.opendc.simulator.compute.SimMachineContext
 import org.opendc.simulator.compute.kernel.SimHypervisor
 import org.opendc.simulator.compute.model.MachineModel
 import org.opendc.simulator.compute.model.MemoryUnit
+import org.opendc.simulator.compute.model.NetworkAdapter
 import org.opendc.simulator.compute.model.ProcessingNode
 import org.opendc.simulator.compute.model.ProcessingUnit
 import org.opendc.simulator.compute.workload.SimWorkload
@@ -348,7 +349,10 @@ public class SimHost(
         val processingUnits = (0 until cpuCount).map { ProcessingUnit(processingNode, it, cpuCapacity) }
         val memoryUnits = listOf(MemoryUnit("Generic", "Generic", 3200.0, memorySize))
 
-        val model = MachineModel(processingUnits, memoryUnits)
+        // TODO: make safe in case network not taken into consideration
+        val originalNic = machine.model.network[0]
+        val networkUnits = listOf(NetworkAdapter("Generic", "Generic", originalNic.bandwidth))
+        val model = MachineModel(processingUnits, memoryUnits, networkUnits)
         return if (optimize) model.optimize() else model
     }
 
