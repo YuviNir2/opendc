@@ -157,6 +157,7 @@ public class SimPsuFactories {
             }
         };
 
+        // TODO: totalBandwidth sometimes drops below minimum (0) because it is double and port.GetDemand & demand are float so I believe there's cutoff somewhere or something else is fucking it up
         private final InHandler ethHandler = new InHandler() {
             @Override
             public void onPush(InPort port, float demand) {
