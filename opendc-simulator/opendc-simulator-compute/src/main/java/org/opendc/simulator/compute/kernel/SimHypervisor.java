@@ -57,6 +57,7 @@ import org.opendc.simulator.flow2.InPort;
 import org.opendc.simulator.flow2.Inlet;
 import org.opendc.simulator.flow2.OutHandler;
 import org.opendc.simulator.flow2.OutPort;
+import org.opendc.simulator.flow2.Outlet;
 import org.opendc.simulator.flow2.mux.FlowMultiplexer;
 import org.opendc.simulator.flow2.mux.FlowMultiplexerFactory;
 
@@ -816,6 +817,46 @@ public final class SimHypervisor implements SimWorkload {
         @Override
         public String toString() {
             return "SimHypervisor.VCpu[model" + model + "]";
+        }
+    }
+
+    private static final class VNic implements SimNetworkInterface {
+
+        private final SimAbstractMachine.NetworkAdapter model;
+        private final InPort input;
+//        private final OutPort output;
+        private final String name;
+
+        private VNic(SimAbstractMachine.NetworkAdapter model, InPort input, int index) {
+            this.model = model;
+            this.input = input;
+            this.name = "vnic" +index;
+
+            input.pull((float) model.getBandwidth());
+        }
+
+        @Override
+        public String getName() {
+            return null;
+        }
+
+        @Override
+        public double getBandwidth() {
+            return 0;
+        }
+
+        @Override
+        public Inlet getTx() {
+            return null;
+        }
+
+        @Override
+        public Outlet getRx() {
+            return null;
+        }
+
+        public InPort getInput() {
+            return input;
         }
     }
 

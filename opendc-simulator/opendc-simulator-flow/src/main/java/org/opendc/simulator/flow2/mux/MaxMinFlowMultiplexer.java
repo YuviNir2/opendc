@@ -134,7 +134,7 @@ public final class MaxMinFlowMultiplexer implements FlowMultiplexer, FlowStageLo
         final BitSet activeInputs = this.activeInputs;
         int slot = activeInputs.nextClearBit(0);
 
-        InPort port = stage.getInlet("in" + slot);
+        InPort port = stage.getInlet("maxminin" + slot);
         port.setHandler(inHandler);
         port.pull(this.capacity);
 
@@ -170,7 +170,7 @@ public final class MaxMinFlowMultiplexer implements FlowMultiplexer, FlowStageLo
         final BitSet activeOutputs = this.activeOutputs;
         int slot = activeOutputs.nextClearBit(0);
 
-        OutPort port = stage.getOutlet("out" + slot);
+        OutPort port = stage.getOutlet("maxminout" + slot);
         port.setHandler(outHandler);
 
         OutPort[] outlets = this.outlets;
@@ -254,6 +254,7 @@ public final class MaxMinFlowMultiplexer implements FlowMultiplexer, FlowStageLo
 
         @Override
         public void onPush(InPort port, float demand) {
+            System.out.println("MinMaxMultiplexer InHandler onPush " + port.getName());
             MaxMinFlowMultiplexer.this.demand += -port.getDemand() + demand;
             rates[port.getId()] = demand;
         }

@@ -34,20 +34,19 @@ import org.opendc.compute.service.scheduler.filters.ComputeFilter
 import org.opendc.compute.service.scheduler.filters.RamFilter
 import org.opendc.compute.service.scheduler.filters.VCpuFilter
 import org.opendc.compute.service.scheduler.weights.CoreRamWeigher
-import org.opendc.experiments.rsuv.topology.clusterTopology
-import org.opendc.experiments.compute.ComputeWorkloadLoader
-import org.opendc.experiments.compute.VirtualMachine
-import org.opendc.experiments.compute.registerComputeMonitor
+ import org.opendc.experiments.compute.ExtendedVirtualMachine
+ import org.opendc.experiments.compute.VirtualMachine
+ import org.opendc.experiments.rsuv.topology.clusterTopology
+ import org.opendc.experiments.compute.registerComputeMonitor
 import org.opendc.experiments.compute.replay
-import org.opendc.experiments.compute.sampleByLoad
-import org.opendc.experiments.compute.setupComputeService
+ import org.opendc.experiments.compute.replay2
+ import org.opendc.experiments.compute.setupComputeService
 import org.opendc.experiments.compute.setupHosts
 import org.opendc.experiments.compute.telemetry.ComputeMonitor
 import org.opendc.experiments.compute.telemetry.table.HostTableReader
 import org.opendc.experiments.compute.telemetry.table.ServiceTableReader
 import org.opendc.experiments.compute.topology.HostSpec
-import org.opendc.experiments.compute.trace
-import org.opendc.experiments.provisioner.Provisioner
+ import org.opendc.experiments.provisioner.Provisioner
  import org.opendc.simulator.compute.power.CpuPowerModels
  import org.opendc.simulator.compute.workload.SimTrace
 import org.opendc.simulator.kotlin.runSimulation
@@ -73,6 +72,7 @@ class MyTest {
      */
     private lateinit var computeScheduler: FilterScheduler
 
+    // TODO: might need to add a weigher/filter for network components
     /**
      * Set up the experimental environment.
      */
@@ -80,7 +80,7 @@ class MyTest {
     fun setUp() {
         monitor = TestComputeMonitor()
         computeScheduler = FilterScheduler(
-            filters = listOf(ComputeFilter(), VCpuFilter(16.0), RamFilter(1.0)),
+            filters = listOf(ComputeFilter(), VCpuFilter(1.0), RamFilter(1.0)),
             weighers = listOf(CoreRamWeigher(multiplier = 1.0))
         )
     }
@@ -103,7 +103,7 @@ class MyTest {
             )
 
             val service = provisioner.registry.resolve("compute.opendc.org", ComputeService::class.java)!!
-            service.replay(timeSource, workload, seed)
+            service.replay2(timeSource, workload, seed)
         }
 
         println(
@@ -129,13 +129,14 @@ class MyTest {
 
     private val baseDir: File = File("src/test/resources/traces")
     private val maxUsage: Double = 15000.0
+    private val maxNetworkUsage: Double = 25000.0
     private val maxCores: Int = 8
     private val maxNumPlayersPerVm = 100
     enum class GameType {
         MMOG, FPS, RTS
     }
 
-    private fun getWorkload(workloadDir: String) : List<VirtualMachine> {
+    private fun getWorkload(workloadDir: String) : List<ExtendedVirtualMachine> {
 //        println("In GetWorkload\n")
         val traceFile = baseDir.resolve("$workloadDir/numPlayersTrace3.csv")
         val metaFile = baseDir.resolve("$workloadDir/meta.csv")
@@ -200,69 +201,13 @@ class MyTest {
         .enable(CsvParser.Feature.ALLOW_COMMENTS)
         .enable(CsvParser.Feature.TRIM_SPACES)
 
-    private fun buildFragments(path : File): Map<Int, FragmentBuilder> {
-        val fragments = mutableMapOf<Int, FragmentBuilder>()
-        val parser = factory.createParser(path)
-        parser.schema = numPlayersSchema
-
-        var timestampStart = 0L
-        var timestampEnd = 0L
-        var numPlayersEnd = 0
-
-        while (!parser.isClosed) {
-            val token = parser.nextValue()
-            if (token == JsonToken.END_OBJECT) {
-                if (timestampStart == 0L) {
-                    timestampStart = timestampEnd
-                    continue
-                }
-
-                var remainingPlayers = numPlayersEnd
-                val numVms = Math.ceil(numPlayersEnd.toDouble()/maxNumPlayersPerVm).toInt()
-//                println("TimestampEnd=$timestampEnd Number of VM=$numVms")
-                for(i in 1..numVms) {
-                    val builder = fragments.computeIfAbsent(i) { FragmentBuilder() }
-                    if (remainingPlayers > maxNumPlayersPerVm) {
-                        builder.add(timestampStart, timestampEnd, maxUsage, maxCores)
-                        remainingPlayers -= maxNumPlayersPerVm
-                    }
-                    else {
-                        val usage = maxUsage*remainingPlayers/maxNumPlayersPerVm
-                        val cores = getNumCores(remainingPlayers.toDouble()/maxNumPlayersPerVm)
-//                        println("remainingPlayers= $remainingPlayers\n" +
-//                            "semi usage= $usage\n" +
-//                            "semi cores= $cores")
-                        builder.add(timestampStart, timestampEnd, usage, cores)
-                    }
-                }
-
-//                println("NUM PLAYERS FUNCTION\n" +
-//                    "numPlayersEnd $numPlayersEnd\n"+
-//                    "timestampStart $timestampStart\n" +
-//                    "timestampEnd $timestampEnd\n")
-
-                timestampStart = timestampEnd
-                timestampEnd = 0L
-                numPlayersEnd = 0
-
-                continue
-            }
-
-            when (parser.currentName) {
-                "timestamp" -> timestampEnd = parser.valueAsLong
-                "avgPlayerCount" -> numPlayersEnd = parser.valueAsInt
-            }
-        }
-
-        return fragments
-    }
-
     private fun buildFragments2(path: File, maxNumPlayers: Int, gameType: GameType): Map<Int, FragmentBuilder> {
         val fragments = mutableMapOf<Int, FragmentBuilder>()
         val parser = factory.createParser(path)
         parser.schema = numPlayersSchema
 
         val singlePlayerUsage = maxUsage/maxNumPlayers
+        val singlePlayerNetworkUsage = maxNetworkUsage/maxNumPlayers
 
         var timestampStart = 0L
         var timestampEnd = 0L
@@ -284,16 +229,21 @@ class MyTest {
 
                     if (remainingPlayers > maxNumPlayers) {
                         val usage = getUsage(gameType, maxNumPlayers, singlePlayerUsage)
-                        builder.add(timestampStart, timestampEnd, usage, maxCores)
+                        val networkUsage = getNetworkUsage(maxNumPlayers, singlePlayerNetworkUsage)
+                        builder.add(timestampStart, timestampEnd, usage, maxCores, networkUsage)
                         remainingPlayers -= maxNumPlayers
+                        println("remainingPlayers= $remainingPlayers\n" +
+                            "semi usage= $usage\n" +
+                            "max cores= $maxCores")
                     }
                     else {
                         val usage = getUsage(gameType, remainingPlayers, singlePlayerUsage)
+                        val networkUsage = getNetworkUsage(remainingPlayers, singlePlayerNetworkUsage)
                         val cores = getNumCores(remainingPlayers.toDouble()/maxNumPlayers)
-//                        println("remainingPlayers= $remainingPlayers\n" +
-//                            "semi usage= $usage\n" +
-//                            "semi cores= $cores")
-                        builder.add(timestampStart, timestampEnd, usage, cores)
+                        println("remainingPlayers= $remainingPlayers\n" +
+                            "semi usage= $usage\n" +
+                            "semi cores= $cores")
+                        builder.add(timestampStart, timestampEnd, usage, cores, networkUsage)
                     }
                 }
 
@@ -331,61 +281,16 @@ class MyTest {
         return when (gameType) {
             GameType.MMOG -> singlePlayerUsage * numPlayers
             GameType.FPS -> Math.pow(singlePlayerUsage, numPlayers.toDouble())
-            GameType.RTS -> singlePlayerUsage*numPlayers + Math.pow(numPlayers.toDouble(), 2.0)
+            GameType.RTS -> singlePlayerUsage * numPlayers + Math.pow(numPlayers.toDouble(), 2.0)
         }
     }
 
-    private fun parseFragments(path: File): Map<Int, FragmentBuilder> {
-        val fragments = mutableMapOf<Int, FragmentBuilder>()
-
-        val parser = factory.createParser(path)
-        parser.schema = fragmentsSchema
-
-        var id = 0
-        var timestamp = 0L
-        var duration = 0L
-        var cores = 0
-        var usage = 0.0
-
-        while (!parser.isClosed) {
-            val token = parser.nextValue()
-            if (token == JsonToken.END_OBJECT) {
-                val builder = fragments.computeIfAbsent(id) { FragmentBuilder() }
-                val deadlineMs = timestamp
-                val timeMs = (timestamp - duration)
-                builder.add(timeMs, deadlineMs, usage, cores)
-
-                println("FRAGMENTS\n" +
-                    "id $id\n" +
-                    "timestamp $timestamp\n" +
-                    "duration $duration\n" +
-                    "cores $cores\n" +
-                    "usage $usage\n"+
-                    "timeMs $timeMs\n"+
-                    "deadlineMs $deadlineMs\n")
-                id = 0
-                timestamp = 0L
-                duration = 0
-                cores = 0
-                usage = 0.0
-
-                continue
-            }
-
-            when (parser.currentName) {
-                "id" -> id = parser.valueAsInt
-                "timestamp" -> timestamp = parser.valueAsLong
-                "duration" -> duration = parser.valueAsLong
-                "cores" -> cores = parser.valueAsInt
-                "usage" -> usage = parser.valueAsDouble
-            }
-        }
-
-        return fragments
+    private fun getNetworkUsage(numPlayers: Int, singlePlayerUsage: Double) : Double {
+            return maxNetworkUsage - (singlePlayerUsage * numPlayers) + singlePlayerUsage
     }
 
-    private fun parseMeta(path: File, fragments: Map<Int, FragmentBuilder>): List<VirtualMachine> {
-        val vms = mutableListOf<VirtualMachine>()
+    private fun parseMeta(path: File, fragments: Map<Int, FragmentBuilder>): List<ExtendedVirtualMachine> {
+        val vms = mutableListOf<ExtendedVirtualMachine>()
         var counter = 0
 
         val parser = factory.createParser(path)
@@ -416,13 +321,16 @@ class MyTest {
 //                    "totalLoad $totalLoad\n" +
 //                    "startTime $startTime\n" +
 //                    "stopTime $stopTime\n")
+
+                val bandwidthCapacity = 15000.0
                 vms.add(
-                    VirtualMachine(
+                    ExtendedVirtualMachine(
                         uid,
                         id.toString(),
                         cpuCount,
                         cpuCapacity,
                         memCapacity.roundToLong(),
+                        bandwidthCapacity,
                         totalLoad,
                         Instant.ofEpochMilli(startTime),
                         Instant.ofEpochMilli(stopTime),
@@ -499,6 +407,20 @@ class MyTest {
             previousDeadline = deadline
         }
 
+        fun add(timestamp: Long, deadline: Long, usage: Double, cores: Int, networkUsage: Double) {
+            val duration = max(0, deadline - timestamp)
+            totalLoad += (usage * duration) / 1000.0 // avg MHz * duration = MFLOPs
+
+            if (timestamp != previousDeadline) {
+                // There is a gap between the previous and current fragment; fill the gap
+                builder.add(timestamp, 0.0, cores, 0.0)
+            }
+
+            println("adding network usage $networkUsage + and usage=$usage")
+            builder.add(deadline, usage, cores, networkUsage)
+            previousDeadline = deadline
+        }
+
         /**
          * Build the trace.
          */
@@ -538,6 +460,112 @@ class MyTest {
             .setAllowComments(true)
             .setUseHeader(true)
             .build()
+
+    private fun buildFragments(path : File): Map<Int, FragmentBuilder> {
+        val fragments = mutableMapOf<Int, FragmentBuilder>()
+        val parser = factory.createParser(path)
+        parser.schema = numPlayersSchema
+
+        var timestampStart = 0L
+        var timestampEnd = 0L
+        var numPlayersEnd = 0
+
+        while (!parser.isClosed) {
+            val token = parser.nextValue()
+            if (token == JsonToken.END_OBJECT) {
+                if (timestampStart == 0L) {
+                    timestampStart = timestampEnd
+                    continue
+                }
+
+                var remainingPlayers = numPlayersEnd
+                val numVms = Math.ceil(numPlayersEnd.toDouble()/maxNumPlayersPerVm).toInt()
+//                println("TimestampEnd=$timestampEnd Number of VM=$numVms")
+                for(i in 1..numVms) {
+                    val builder = fragments.computeIfAbsent(i) { FragmentBuilder() }
+                    if (remainingPlayers > maxNumPlayersPerVm) {
+                        builder.add(timestampStart, timestampEnd, maxUsage, maxCores)
+                        remainingPlayers -= maxNumPlayersPerVm
+                    }
+                    else {
+                        val usage = maxUsage*remainingPlayers/maxNumPlayersPerVm
+                        val cores = getNumCores(remainingPlayers.toDouble()/maxNumPlayersPerVm)
+//                        println("remainingPlayers= $remainingPlayers\n" +
+//                            "semi usage= $usage\n" +
+//                            "semi cores= $cores")
+                        builder.add(timestampStart, timestampEnd, usage, cores)
+                    }
+                }
+
+//                println("NUM PLAYERS FUNCTION\n" +
+//                    "numPlayersEnd $numPlayersEnd\n"+
+//                    "timestampStart $timestampStart\n" +
+//                    "timestampEnd $timestampEnd\n")
+
+                timestampStart = timestampEnd
+                timestampEnd = 0L
+                numPlayersEnd = 0
+
+                continue
+            }
+
+            when (parser.currentName) {
+                "timestamp" -> timestampEnd = parser.valueAsLong
+                "avgPlayerCount" -> numPlayersEnd = parser.valueAsInt
+            }
+        }
+
+        return fragments
+    }
+
+    private fun parseFragments(path: File): Map<Int, FragmentBuilder> {
+        val fragments = mutableMapOf<Int, FragmentBuilder>()
+
+        val parser = factory.createParser(path)
+        parser.schema = fragmentsSchema
+
+        var id = 0
+        var timestamp = 0L
+        var duration = 0L
+        var cores = 0
+        var usage = 0.0
+
+        while (!parser.isClosed) {
+            val token = parser.nextValue()
+            if (token == JsonToken.END_OBJECT) {
+                val builder = fragments.computeIfAbsent(id) { FragmentBuilder() }
+                val deadlineMs = timestamp
+                val timeMs = (timestamp - duration)
+                builder.add(timeMs, deadlineMs, usage, cores)
+
+                println("FRAGMENTS\n" +
+                    "id $id\n" +
+                    "timestamp $timestamp\n" +
+                    "duration $duration\n" +
+                    "cores $cores\n" +
+                    "usage $usage\n"+
+                    "timeMs $timeMs\n"+
+                    "deadlineMs $deadlineMs\n")
+                id = 0
+                timestamp = 0L
+                duration = 0
+                cores = 0
+                usage = 0.0
+
+                continue
+            }
+
+            when (parser.currentName) {
+                "id" -> id = parser.valueAsInt
+                "timestamp" -> timestamp = parser.valueAsLong
+                "duration" -> duration = parser.valueAsLong
+                "cores" -> cores = parser.valueAsInt
+                "usage" -> usage = parser.valueAsDouble
+            }
+        }
+
+        return fragments
+    }
 
 
     /**

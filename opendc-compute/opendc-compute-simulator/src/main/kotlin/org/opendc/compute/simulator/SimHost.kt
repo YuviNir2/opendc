@@ -351,7 +351,8 @@ public class SimHost(
 
         // TODO: make safe in case network not taken into consideration
         val originalNic = machine.model.network[0]
-        val networkUnits = listOf(NetworkAdapter("Generic", "Generic", originalNic.bandwidth))
+        val bandwidthCapacity = (this.meta["bandwidth-capacity"] as? Double ?: Double.MAX_VALUE).coerceAtMost(originalNic.bandwidth)
+        val networkUnits = listOf(NetworkAdapter(originalNic.vendor, originalNic.modelName, bandwidthCapacity))
         val model = MachineModel(processingUnits, memoryUnits, networkUnits)
         return if (optimize) model.optimize() else model
     }

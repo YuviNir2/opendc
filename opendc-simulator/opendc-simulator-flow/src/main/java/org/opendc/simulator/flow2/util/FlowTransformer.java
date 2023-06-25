@@ -48,6 +48,17 @@ public final class FlowTransformer implements FlowStageLogic, FlowSource, FlowSi
         this.output.setMask(true);
     }
 
+    public FlowTransformer(FlowGraph graph, FlowTransform transform, int index) {
+        this.stage = graph.newStage(this);
+        this.input = stage.getInlet("in" + index);
+        this.output = stage.getOutlet("out" + index);
+
+        this.input.setHandler(new ForwardInHandler(output, transform));
+        this.input.setMask(true);
+        this.output.setHandler(new ForwardOutHandler(input, transform));
+        this.output.setMask(true);
+    }
+
     /**
      * Return the {@link Outlet} of the transformer.
      */
@@ -90,9 +101,11 @@ public final class FlowTransformer implements FlowStageLogic, FlowSource, FlowSi
             return transform.applyInverse(output.getRate());
         }
 
+        // TODO: output.input here is null which seems wrong, is this why the demand isn't trickling down?
         @Override
         public void onPush(InPort port, float demand) {
             float rate = transform.apply(demand);
+            System.out.println("FlowTransformer onPush output=" + output.getName() + " output.input=" + output.input);
             output.push(rate);
         }
 

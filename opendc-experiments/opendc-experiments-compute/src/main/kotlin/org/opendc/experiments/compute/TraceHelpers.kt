@@ -118,3 +118,84 @@ public suspend fun ComputeService.replay(
         client.close()
     }
 }
+
+// TODO: move ExtendedVirtualMachine into my folder or a find a solution to solve the dependencies
+public suspend fun ComputeService.replay2(
+    clock: InstantSource,
+    trace: List<ExtendedVirtualMachine>,
+    seed: Long,
+    submitImmediately: Boolean = false,
+    failureModel: FailureModel? = null,
+    interference: Boolean = false
+) {
+    val injector = failureModel?.createInjector(coroutineContext, clock, this, Random(seed))
+    val client = newClient()
+
+    // Create new image for the virtual machine
+    val image = client.newImage("vm-image")
+
+    try {
+        coroutineScope {
+            // Start the fault injector
+            injector?.start()
+
+            var offset = Long.MIN_VALUE
+
+            for (entry in trace.sortedBy { it.startTime }) {
+                val now = clock.millis()
+                val start = entry.startTime.toEpochMilli()
+
+                if (offset < 0) {
+                    offset = start - now
+                }
+
+                // Make sure the trace entries are ordered by submission time
+                assert(start - offset >= 0) { "Invalid trace order" }
+
+                if (!submitImmediately) {
+                    delay(max(0, (start - offset) - now))
+                }
+
+                val workloadOffset = -offset + 300001
+                val workload = entry.trace.createWorkload(workloadOffset)
+                val meta = mutableMapOf<String, Any>("workload" to workload)
+
+                val interferenceProfile = entry.interferenceProfile
+                if (interference && interferenceProfile != null) {
+                    meta["interference-profile"] = interferenceProfile
+                }
+
+                val flavorMeta = HashMap<String, Double>()
+                if (entry.cpuCapacity > 0.0) flavorMeta["cpu-capacity"] = entry.cpuCapacity
+                if (entry.bandwidthCapacity > 0.0) flavorMeta["bandwidth-capacity"] = entry.bandwidthCapacity
+                launch {
+                    val server = client.newServer(
+                        entry.name,
+                        image,
+// TODO: Extend Flavor I think
+                        client.newFlavor(
+                            entry.name,
+                            entry.cpuCount,
+                            entry.memCapacity,
+                            meta = flavorMeta
+//                            meta = if (entry.cpuCapacity > 0.0) mapOf("cpu-capacity" to entry.cpuCapacity) else emptyMap()
+                        ),
+                        meta = meta
+                    )
+
+                    // Wait for the server reach its end time
+                    val endTime = entry.stopTime.toEpochMilli()
+                    delay(endTime + workloadOffset - clock.millis() + 5 * 60 * 1000)
+
+                    // Stop the server after reaching the end-time of the virtual machine
+                    server.stop()
+                }
+            }
+        }
+
+        yield()
+    } finally {
+        injector?.close()
+        client.close()
+    }
+}

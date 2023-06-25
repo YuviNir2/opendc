@@ -38,7 +38,7 @@ public final class InPort implements Inlet {
 
     private boolean mask;
 
-    OutPort output;
+    public OutPort output;
     private InHandler handler = InHandlers.noop();
     private final InstantSource clock;
     private final String name;
@@ -178,6 +178,7 @@ public final class InPort implements Inlet {
      * @param demand The rate of flow to push.
      */
     void push(float demand) {
+        System.out.println("Now in Inport the two demands:" +demand +" "+this.demand + " handler="+handler.getClass());
         // No-op when the rate is unchanged
         if (this.demand == demand) {
             return;
