@@ -106,10 +106,10 @@ public class SimPsuFactories {
         }
 
         @Override
-        InPort getNicPower(int id, org.opendc.simulator.compute.model.NetworkAdapter model, InPort port) {
-            final InPort newPort = stage.getInlet("eth" + id);
+        InPort getNicPower(int id, org.opendc.simulator.compute.model.NetworkAdapter model) {
+            final InPort port = stage.getInlet("eth" + id);
             port.setMask(true);
-            return newPort;
+            return port;
         }
 
         @Override
@@ -219,11 +219,11 @@ public class SimPsuFactories {
         }
 
         @Override
-        InPort getNicPower(int id, org.opendc.simulator.compute.model.NetworkAdapter model, InPort port) {
+        InPort getNicPower(int id, org.opendc.simulator.compute.model.NetworkAdapter model) {
             maxBandwidth += model.getBandwidth();
 //            System.out.println("getNicPower maxBandwidth=" + maxBandwidth + " model.getBandwidth()=" + model.getBandwidth());
 
-//            final InPort port = stage.getInlet("eth" + id);
+            final InPort port = stage.getInlet("eth" + id);
             port.setHandler(ethHandler);
             return port;
         }

@@ -487,8 +487,8 @@ public final class SimTrace {
             for (int i = 0; i < nics.size(); i++) {
                 final SimNetworkInterface nic = nics.get(i);
                 final OutPort output = stage.getOutlet("ethST" + i);
-                SimAbstractMachine.NetworkAdapter n = (SimAbstractMachine.NetworkAdapter)nic;
-                graph.connect(output, n.getTx());
+                SimHypervisor.VNic n = (SimHypervisor.VNic)nic;
+                graph.connect(output, n.getInput());
 //                graph.connect(n.getRx(), n.getTx());
                 outputs[i+coreCount] = output;
             }

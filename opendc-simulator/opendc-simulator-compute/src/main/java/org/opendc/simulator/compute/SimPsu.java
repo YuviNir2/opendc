@@ -59,7 +59,7 @@ public abstract class SimPsu extends SimPowerInlet {
      */
     abstract InPort getCpuPower(int id, ProcessingUnit model);
 
-    abstract InPort getNicPower(int id, org.opendc.simulator.compute.model.NetworkAdapter model, InPort port);
+    abstract InPort getNicPower(int id, org.opendc.simulator.compute.model.NetworkAdapter model);
 
 
     /**

@@ -231,6 +231,7 @@ public final class MaxMinFlowMultiplexer implements FlowMultiplexer, FlowStageLo
         return capacity - availableCapacity;
     }
 
+    // TODO: figure out how to separate between capacity and networkCapacity cause what's being pushed now is according to the cpu usage.
     /**
      * Helper method to change the rate of the outlets.
      */
@@ -239,6 +240,7 @@ public final class MaxMinFlowMultiplexer implements FlowMultiplexer, FlowStageLo
         for (int i = activeOutputs.nextSetBit(0); i != -1; i = activeOutputs.nextSetBit(i + 1)) {
             OutPort outlet = outlets[i];
             float fraction = outlet.getCapacity() / capacity;
+            System.out.println("outlet:" + outlet.getName() + " outlet.input:" + outlet.input.getName() + " outlet.capacity:" + outlet.getCapacity() + " capacity:" + capacity + " rate:" + rate + " fraction:" + fraction + " res:" + (rate*fraction));
             outlet.push(rate * fraction);
         }
     }
@@ -254,7 +256,7 @@ public final class MaxMinFlowMultiplexer implements FlowMultiplexer, FlowStageLo
 
         @Override
         public void onPush(InPort port, float demand) {
-            System.out.println("MinMaxMultiplexer InHandler onPush " + port.getName());
+            System.out.println("MinMaxMultiplexer InHandler onPush " + port.getName() + "rates.size():" + rates.length + " port.getId:"+port.getId());
             MaxMinFlowMultiplexer.this.demand += -port.getDemand() + demand;
             rates[port.getId()] = demand;
         }

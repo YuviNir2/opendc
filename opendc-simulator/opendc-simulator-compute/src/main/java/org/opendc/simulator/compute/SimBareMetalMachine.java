@@ -302,15 +302,19 @@ public final class SimBareMetalMachine extends SimAbstractMachine {
         }
     }
 
-    private final static class Nic extends NetworkAdapter {
+    public final static class Nic extends NetworkAdapter {
         private final SimPsu psu;
+        private final InPort port;
 
         public Nic(SimPsu psu, FlowGraph graph, org.opendc.simulator.compute.model.NetworkAdapter model, int index) {
             super(graph, model, index);
             this.psu = psu;
-            InPort port = (InPort)this.getInlet();
-            this.psu.getNicPower(index, model, port);
+            this.port =  this.psu.getNicPower(index, model);
             port.pull((float) model.getBandwidth());
+        }
+
+        public InPort getInput() {
+            return port;
         }
     }
 }

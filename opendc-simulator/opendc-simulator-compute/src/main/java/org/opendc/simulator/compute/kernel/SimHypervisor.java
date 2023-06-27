@@ -32,6 +32,7 @@ import java.util.SplittableRandom;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.opendc.simulator.compute.SimAbstractMachine;
+import org.opendc.simulator.compute.SimBareMetalMachine;
 import org.opendc.simulator.compute.SimMachine;
 import org.opendc.simulator.compute.SimMachineContext;
 import org.opendc.simulator.compute.SimMemory;
@@ -309,8 +310,8 @@ public final class SimHypervisor implements SimWorkload {
             }
 
             for (SimNetworkInterface nic : ctx.getNetworkInterfaces()) {
-                SimAbstractMachine.NetworkAdapter n = (SimAbstractMachine.NetworkAdapter)nic;
-                graph.connect(multiplexer.newOutput(), n.getInlet());
+                SimBareMetalMachine.Nic n = (SimBareMetalMachine.Nic)nic;
+                graph.connect(multiplexer.newOutput(), n.getInput());
             }
 
             for (ScalingGovernor governor : scalingGovernors) {
@@ -538,7 +539,7 @@ public final class SimHypervisor implements SimWorkload {
 
         private final List<VCpu> cpus;
         private final SimAbstractMachine.Memory memory;
-        private final List<SimAbstractMachine.NetworkAdapter> net;
+        private final List<VNic> net;
         private final List<SimAbstractMachine.StorageDevice> disk;
 
         private final Inlet[] muxInlets;
@@ -605,8 +606,8 @@ public final class SimHypervisor implements SimWorkload {
                 final Inlet muxInlet = multiplexer.newInput();
                 muxInlets[i] = muxInlet;
 
-                final InPort input = stage.getInlet("cpu" + i);
-                final OutPort output = stage.getOutlet("mux" + i);
+                final InPort input = stage.getInlet("vcpu" + i);
+                final OutPort output = stage.getOutlet("vmux" + i);
 
                 final Handler handler = new Handler(this, input, output);
                 input.setHandler(handler);
@@ -624,18 +625,19 @@ public final class SimHypervisor implements SimWorkload {
 
             this.memory = new SimAbstractMachine.Memory(graph, model.getMemory());
 
-            final ArrayList<SimAbstractMachine.NetworkAdapter> net = new ArrayList<>();
+            final ArrayList<VNic> net = new ArrayList<>();
             this.net = net;
             for (int i = cpuModels.size(); i < networkModels.size()+cpuModels.size(); i++) {
                 final Inlet muxInlet = multiplexer.newInput();
                 muxInlets[i] = muxInlet;
-                final InPort input = stage.getInlet("nic" + (i - cpuModels.size()));
-                final OutPort output = stage.getOutlet("mux" + i);
+                final InPort input = stage.getInlet("vnic" + (i - cpuModels.size()));
+                final OutPort output = stage.getOutlet("ethvmux" + i);
                 final Handler handler = new Handler(this, input, output);
                 input.setHandler(handler);
                 output.setHandler(handler);
                 final NetworkAdapter netModel = networkModels.get(i - cpuModels.size());
-                final SimAbstractMachine.NetworkAdapter nic = new SimAbstractMachine.NetworkAdapter(graph, netModel, i-cpuModels.size());
+//                final SimAbstractMachine.NetworkAdapter netAdapter = new SimAbstractMachine.NetworkAdapter(graph, netModel, i-cpuModels.size());
+                final VNic nic = new VNic(graph, netModel,i-cpuModels.size(), input);
                 net.add(nic);
                 input.pull((float) netModel.getBandwidth());
 
@@ -820,39 +822,16 @@ public final class SimHypervisor implements SimWorkload {
         }
     }
 
-    private static final class VNic implements SimNetworkInterface {
+    public static final class VNic extends SimAbstractMachine.NetworkAdapter {
 
-        private final SimAbstractMachine.NetworkAdapter model;
         private final InPort input;
 //        private final OutPort output;
-        private final String name;
 
-        private VNic(SimAbstractMachine.NetworkAdapter model, InPort input, int index) {
-            this.model = model;
+        private VNic(FlowGraph graph, org.opendc.simulator.compute.model.NetworkAdapter model, int index, InPort input) {
+            super(graph, model, index);
             this.input = input;
-            this.name = "vnic" +index;
 
-            input.pull((float) model.getBandwidth());
-        }
-
-        @Override
-        public String getName() {
-            return null;
-        }
-
-        @Override
-        public double getBandwidth() {
-            return 0;
-        }
-
-        @Override
-        public Inlet getTx() {
-            return null;
-        }
-
-        @Override
-        public Outlet getRx() {
-            return null;
+            this.input.pull((float) model.getBandwidth());
         }
 
         public InPort getInput() {
