@@ -82,6 +82,8 @@ public final class OutPort implements Outlet {
         return demand;
     }
 
+    public InPort getInput() { return input; }
+
     /**
      * Return the current rate of flow of the input port.
      */
@@ -133,7 +135,7 @@ public final class OutPort implements Outlet {
         demand = rate;
         InPort input = this.input;
         if (input != null) {
-            System.out.println("Now we're in OutPort " +this.name + " push input=" + input.getName());
+            System.out.println("OutPort push name:" +this.name + " input=" + input.getName() + " rate=" + rate);
             input.push(rate);
         }
     }

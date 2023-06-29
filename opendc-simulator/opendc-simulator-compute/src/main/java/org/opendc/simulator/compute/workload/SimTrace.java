@@ -530,15 +530,14 @@ public final class SimTrace {
                 outputs[i].push(usage);
             }
 
-            // TODO: I think it's not pushing the demand all the way down maybe I need to connect the tx and rx(doubtful)? or just see why
             float networkUsage = (float) networkUsageCol[index];
             for (int i = coreCount; i < nicCount+coreCount; i++) {
-                System.out.println("pushing with nic " + outputs[i].getName() + " " + i + " networkUsage=" + networkUsage + " input?=" +outputs[i].input.getName());
+                System.out.println("SimTrace onUpdate pushing with nic " + outputs[i].getName() + " " + i + " networkUsage=" + networkUsage + " input?=" +outputs[i].input.getName());
                 System.out.println("and where does it go? " + outputs[i].input.getHandler().getClass());
                 outputs[i].push(networkUsage);
             }
 
-            for (int i = cores; i < outputs.length; i++) {
+            for (int i = cores+nicCount; i < outputs.length; i++) {
                 outputs[i].push(0.f);
             }
 

@@ -184,7 +184,7 @@ public final class SimHypervisor implements SimWorkload {
             return 0.0;
         }
 
-        return context.previousCapacity;
+        return context.previousCpuCapacity;
     }
 
     /**
@@ -197,7 +197,17 @@ public final class SimHypervisor implements SimWorkload {
             return 0.0;
         }
 
-        return context.previousDemand;
+        return context.previousCpuDemand;
+    }
+
+    public double getNetworkDemand() {
+        final Context context = activeContext;
+
+        if (context == null) {
+            return 0.0;
+        }
+
+        return context.previousNetworkDemand;
     }
 
     /**
@@ -210,7 +220,17 @@ public final class SimHypervisor implements SimWorkload {
             return 0.0;
         }
 
-        return context.previousRate;
+        return context.previousCpuRate;
+    }
+
+    public double getNetworkUsage() {
+        final Context context = activeContext;
+
+        if (context == null) {
+            return 0.0;
+        }
+
+        return context.previousNetworkRate;
     }
 
     /**
@@ -223,8 +243,9 @@ public final class SimHypervisor implements SimWorkload {
             return false;
         }
 
-        final FlowMultiplexer multiplexer = context.multiplexer;
-        return (multiplexer.getMaxInputs() - multiplexer.getInputCount())
+        // TODO: Add && that also checks that the NICs fit
+        final FlowMultiplexer cpuMultiplexer = context.cpuMultiplexer;
+        return (cpuMultiplexer.getMaxInputs() - cpuMultiplexer.getInputCount())
                 >= model.getCpus().size();
     }
 
@@ -254,7 +275,8 @@ public final class SimHypervisor implements SimWorkload {
      */
     private static final class Context implements FlowStageLogic {
         private final SimMachineContext ctx;
-        private final FlowMultiplexer multiplexer;
+        private final FlowMultiplexer cpuMultiplexer;
+        private final FlowMultiplexer networkMultiplexer;
         private final FlowStage stage;
         private final List<ScalingGovernor> scalingGovernors;
         private final InstantSource clock;
@@ -262,9 +284,11 @@ public final class SimHypervisor implements SimWorkload {
 
         private long lastCounterUpdate;
         private final double d;
-        private float previousDemand;
-        private float previousRate;
-        private float previousCapacity;
+        private float previousCpuDemand;
+        private float previousCpuRate;
+        private float previousCpuCapacity;
+        private float previousNetworkRate;
+        private float previousNetworkDemand;
 
         private Context(
                 SimMachineContext ctx,
@@ -276,7 +300,8 @@ public final class SimHypervisor implements SimWorkload {
             this.counters = counters;
 
             final FlowGraph graph = ctx.getGraph();
-            this.multiplexer = muxFactory.newMultiplexer(graph);
+            this.cpuMultiplexer = muxFactory.newMultiplexer(graph);
+            this.networkMultiplexer = muxFactory.newMultiplexer(graph);
             this.stage = graph.newStage(this);
             this.clock = graph.getEngine().getClock();
 
@@ -303,15 +328,16 @@ public final class SimHypervisor implements SimWorkload {
          */
         void start() {
             final FlowGraph graph = ctx.getGraph();
-            final FlowMultiplexer multiplexer = this.multiplexer;
+            final FlowMultiplexer cpuMultiplexer = this.cpuMultiplexer;
+            final FlowMultiplexer networkMultiplexer = this.networkMultiplexer;
 
             for (SimProcessingUnit cpu : ctx.getCpus()) {
-                graph.connect(multiplexer.newOutput(), cpu.getInput());
+                graph.connect(cpuMultiplexer.newOutput(), cpu.getInput());
             }
 
             for (SimNetworkInterface nic : ctx.getNetworkInterfaces()) {
                 SimBareMetalMachine.Nic n = (SimBareMetalMachine.Nic)nic;
-                graph.connect(multiplexer.newOutput(), n.getInput());
+                graph.connect(networkMultiplexer.newOutput(), n.getInput());
             }
 
             for (ScalingGovernor governor : scalingGovernors) {
@@ -349,9 +375,9 @@ public final class SimHypervisor implements SimWorkload {
             if (delta > 0) {
                 final HvCounters counters = this.counters;
 
-                float demand = previousDemand;
-                float rate = previousRate;
-                float capacity = previousCapacity;
+                float demand = previousCpuDemand;
+                float rate = previousCpuRate;
+                float capacity = previousCpuCapacity;
 
                 final double factor = this.d * delta;
 //                if (demand != 0 || rate != 0) System.out.println("SimHypervisor updateCounters now=" +now + " demand="+demand +" rate="+rate+ " capacity="+capacity +" factor="+factor);
@@ -372,18 +398,23 @@ public final class SimHypervisor implements SimWorkload {
         public long onUpdate(FlowStage ctx, long now) {
             updateCounters(now);
 
-            final FlowMultiplexer multiplexer = this.multiplexer;
+            final FlowMultiplexer cpuMultiplexer = this.cpuMultiplexer;
+            final FlowMultiplexer networkMultiplexer = this.networkMultiplexer;
             final List<ScalingGovernor> scalingGovernors = this.scalingGovernors;
 
-            float demand = multiplexer.getDemand();
-            float rate = multiplexer.getRate();
-            float capacity = multiplexer.getCapacity();
+            float cpuDemand = cpuMultiplexer.getDemand();
+            float cpuRate = cpuMultiplexer.getRate();
+            float cpuCapacity = cpuMultiplexer.getCapacity();
+            float networkRate = networkMultiplexer.getRate();
+            float networkDemand = networkMultiplexer.getDemand();
 
-            this.previousDemand = demand;
-            this.previousRate = rate;
-            this.previousCapacity = capacity;
+            this.previousCpuDemand = cpuDemand;
+            this.previousCpuRate = cpuRate;
+            this.previousCpuCapacity = cpuCapacity;
+            this.previousNetworkRate = networkRate;
+            this.previousNetworkDemand = networkDemand;
 
-            double load = rate / Math.min(1.0, capacity);
+            double load = cpuRate / Math.min(1.0, cpuCapacity);
 
             if (!scalingGovernors.isEmpty()) {
                 for (ScalingGovernor governor : scalingGovernors) {
@@ -455,7 +486,7 @@ public final class SimHypervisor implements SimWorkload {
                 return 0.0;
             }
 
-            return context.previousDemand;
+            return context.previousCpuDemand;
         }
 
         @Override
@@ -466,7 +497,7 @@ public final class SimHypervisor implements SimWorkload {
                 return 0.0;
             }
 
-            return context.usage;
+            return context.cpuUsage;
         }
 
         @Override
@@ -477,7 +508,7 @@ public final class SimHypervisor implements SimWorkload {
                 return 0.0;
             }
 
-            return context.previousCapacity;
+            return context.previousCpuCapacity;
         }
 
         @Override
@@ -534,7 +565,8 @@ public final class SimHypervisor implements SimWorkload {
         private final HvCounters hvCounters;
         private final VmInterferenceMember interferenceMember;
         private final FlowStage stage;
-        private final FlowMultiplexer multiplexer;
+        private final FlowMultiplexer cpuMultiplexer;
+        private final FlowMultiplexer networkMultiplexer;
         private final InstantSource clock;
 
         private final List<VCpu> cpus;
@@ -542,17 +574,22 @@ public final class SimHypervisor implements SimWorkload {
         private final List<VNic> net;
         private final List<SimAbstractMachine.StorageDevice> disk;
 
-        private final Inlet[] muxInlets;
+        private final Inlet[] muxCpuInlets;
+        private final Inlet[] muxNetworkInlets;
         private long lastUpdate;
         private long lastCounterUpdate;
         private final double d;
 
-        private float demand;
-        private float usage;
-        private float capacity;
+        private float cpuDemand;
+        private float cpuUsage;
+        private float cpuCapacity;
 
-        private float previousDemand;
-        private float previousCapacity;
+        private float networkDemand;
+        private float networkUsage;
+        private float previousNetworkDemand;
+
+        private float previousCpuDemand;
+        private float previousCpuCapacity;
 
         private VmContext(
                 Context context,
@@ -586,28 +623,32 @@ public final class SimHypervisor implements SimWorkload {
             this.lastUpdate = clock.millis();
             this.lastCounterUpdate = clock.millis();
 
-            final FlowMultiplexer multiplexer = context.multiplexer;
-            this.multiplexer = multiplexer;
+            final FlowMultiplexer cpuMultiplexer = context.cpuMultiplexer;
+            this.cpuMultiplexer = cpuMultiplexer;
+            final FlowMultiplexer networkMultiplexer = context.networkMultiplexer;
+            this.networkMultiplexer = networkMultiplexer;
 
             final MachineModel model = machine.getModel();
             final List<ProcessingUnit> cpuModels = model.getCpus();
             final List<NetworkAdapter> networkModels = model.getNetwork();
 //            final Inlet[] muxInlets = new Inlet[cpuModels.size()];
-            final Inlet[] muxInlets = new Inlet[cpuModels.size() + networkModels.size()];
+            final Inlet[] muxCpuInlets = new Inlet[cpuModels.size()];
+            final Inlet[] muxNetworkInlets = new Inlet[networkModels.size()];
 
             final ArrayList<VCpu> cpus = new ArrayList<>();
 
-            this.muxInlets = muxInlets;
+            this.muxCpuInlets = muxCpuInlets;
+            this.muxNetworkInlets = muxNetworkInlets;
             this.cpus = cpus;
 
             float capacity = 0.f;
 
             for (int i = 0; i < cpuModels.size(); i++) {
-                final Inlet muxInlet = multiplexer.newInput();
-                muxInlets[i] = muxInlet;
+                final Inlet muxInlet = cpuMultiplexer.newInput();
+                muxCpuInlets[i] = muxInlet;
 
                 final InPort input = stage.getInlet("vcpu" + i);
-                final OutPort output = stage.getOutlet("vmux" + i);
+                final OutPort output = stage.getOutlet("vcpumux" + i);
 
                 final Handler handler = new Handler(this, input, output);
                 input.setHandler(handler);
@@ -627,17 +668,17 @@ public final class SimHypervisor implements SimWorkload {
 
             final ArrayList<VNic> net = new ArrayList<>();
             this.net = net;
-            for (int i = cpuModels.size(); i < networkModels.size()+cpuModels.size(); i++) {
-                final Inlet muxInlet = multiplexer.newInput();
-                muxInlets[i] = muxInlet;
-                final InPort input = stage.getInlet("vnic" + (i - cpuModels.size()));
+            for (int i = 0; i < networkModels.size(); i++) {
+                final Inlet muxInlet = networkMultiplexer.newInput();
+                muxNetworkInlets[i] = muxInlet;
+                final InPort input = stage.getInlet("vnic" + (i));
                 final OutPort output = stage.getOutlet("ethvmux" + i);
                 final Handler handler = new Handler(this, input, output);
                 input.setHandler(handler);
                 output.setHandler(handler);
-                final NetworkAdapter netModel = networkModels.get(i - cpuModels.size());
+                final NetworkAdapter netModel = networkModels.get(i);
 //                final SimAbstractMachine.NetworkAdapter netAdapter = new SimAbstractMachine.NetworkAdapter(graph, netModel, i-cpuModels.size());
-                final VNic nic = new VNic(graph, netModel,i-cpuModels.size(), input);
+                final VNic nic = new VNic(graph, netModel, i, input);
                 net.add(nic);
                 input.pull((float) netModel.getBandwidth());
 
@@ -669,9 +710,9 @@ public final class SimHypervisor implements SimWorkload {
             if (delta > 0) {
                 final VmCounters counters = this.vmCounters;
 
-                float demand = this.previousDemand;
-                float rate = this.usage;
-                float capacity = this.previousCapacity;
+                float demand = this.previousCpuDemand;
+                float rate = this.cpuUsage;
+                float capacity = this.previousCpuCapacity;
 
                 final double factor = this.d * delta;
                 final double active = rate * factor;
@@ -716,13 +757,19 @@ public final class SimHypervisor implements SimWorkload {
 
         @Override
         public long onUpdate(FlowStage ctx, long now) {
-            float usage = 0.f;
-            for (Inlet inlet : muxInlets) {
-                usage += ((InPort) inlet).getRate();
+            float cpuUsage = 0.f;
+            float networkUsage = 0.f;
+            for (Inlet inlet : muxCpuInlets) {
+                cpuUsage += ((InPort) inlet).getRate();
             }
-            this.usage = usage;
-            this.previousDemand = demand;
-            this.previousCapacity = capacity;
+            for (Inlet inlet : muxNetworkInlets) {
+                networkUsage += ((InPort) inlet).getRate();
+            }
+            this.cpuUsage = cpuUsage;
+            this.networkUsage = networkUsage;
+            this.previousCpuDemand = cpuDemand;
+            this.previousNetworkDemand = networkDemand;
+            this.previousCpuCapacity = cpuCapacity;
 
             long lastUpdate = this.lastUpdate;
             this.lastUpdate = now;
@@ -733,13 +780,13 @@ public final class SimHypervisor implements SimWorkload {
                 double penalty = 0.0;
 
                 if (interferenceMember != null) {
-                    final FlowMultiplexer multiplexer = this.multiplexer;
+                    final FlowMultiplexer multiplexer = this.cpuMultiplexer;
                     double load = multiplexer.getRate() / Math.min(1.0, multiplexer.getCapacity());
                     penalty = 1 - interferenceMember.apply(random, load);
                 }
 
                 final double factor = this.d * delta;
-                final long lostTime = Math.round(factor * usage * penalty);
+                final long lostTime = Math.round(factor * cpuUsage * penalty);
 
                 this.vmCounters.cpuLostTime += lostTime;
                 this.hvCounters.cpuLostTime += lostTime;
@@ -760,9 +807,14 @@ public final class SimHypervisor implements SimWorkload {
 
             stage.close();
 
-            final FlowMultiplexer multiplexer = this.multiplexer;
-            for (Inlet muxInlet : muxInlets) {
-                multiplexer.releaseInput(muxInlet);
+            final FlowMultiplexer cpuMultiplexer = this.cpuMultiplexer;
+            final FlowMultiplexer networkMultiplexer = this.networkMultiplexer;
+            for (Inlet muxInlet : muxCpuInlets) {
+                cpuMultiplexer.releaseInput(muxInlet);
+            }
+
+            for (Inlet muxInlet : muxNetworkInlets) {
+                networkMultiplexer.releaseInput(muxInlet);
             }
 
             final VmInterferenceMember interferenceMember = this.interferenceMember;
@@ -855,14 +907,21 @@ public final class SimHypervisor implements SimWorkload {
 
         @Override
         public void onPush(InPort port, float demand) {
-            context.demand += -port.getDemand() + demand;
+            if (port.getName().contains("eth") || port.getName().contains("nic")) {
+                System.out.println("SimHypervisor Handler onPush NIC InPort:" + port.getName() + " port.handler():" + port.getHandler() + " outport:" + output.getName() + " demand:" + demand);
+                context.networkDemand += -port.getDemand() + demand;
+            } else {
+                System.out.println("SimHypervisor Handler onPush CPU InPort:" + port.getName() + " port.handler():" + port.getHandler() + " outport:" + output.getName() + " demand:" + demand);
+                context.cpuDemand += -port.getDemand() + demand;
+            }
 
             output.push(demand);
         }
 
         @Override
         public void onUpstreamFinish(InPort port, Throwable cause) {
-            context.demand -= port.getDemand();
+            System.out.println("SimHypervisor Handler onUpstreamFinish InPort:" + port.getName() + " outport:" + output.getName());
+            context.cpuDemand -= port.getDemand();
 
             output.push(0.f);
         }
@@ -874,14 +933,16 @@ public final class SimHypervisor implements SimWorkload {
 
         @Override
         public void onPull(OutPort port, float capacity) {
-            context.capacity += -port.getCapacity() + capacity;
+            System.out.println("SimHypervisor Handler onPull OutPort:" + port.getName() + " outport:" + input.getName());
+            context.cpuCapacity += -port.getCapacity() + capacity;
 
             input.pull(capacity);
         }
 
         @Override
         public void onDownstreamFinish(OutPort port, Throwable cause) {
-            context.capacity -= port.getCapacity();
+            System.out.println("SimHypervisor Handler onDownstreamFinish OutPort:" + port.getName() + " outport:" + input.getName());
+            context.cpuCapacity -= port.getCapacity();
 
             input.pull(0.f);
         }

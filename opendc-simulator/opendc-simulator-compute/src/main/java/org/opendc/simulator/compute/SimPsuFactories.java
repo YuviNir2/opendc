@@ -243,9 +243,8 @@ public class SimPsuFactories {
             double networkUsage = networkModel.computePower(totalBandwidth / maxBandwidth);
             System.out.print("SimPsuFactories usage=" + usage + " totalUsage=" + totalUsage + " targetFreq=" + targetFreq);
             System.out.println(" networkUsage=" + networkUsage + " totalBandwidth=" + totalBandwidth + " maxBandwidth=" + maxBandwidth);
-//            System.out.println("Pushing powerUsage=" + (usage) + " what's outPort? " + out.getName());
-            out.push((float) usage);
-            powerUsage = usage;
+            out.push((float) (usage + networkUsage));
+            powerUsage = usage + networkUsage;
 
             return Long.MAX_VALUE;
         }

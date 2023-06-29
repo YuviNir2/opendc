@@ -301,6 +301,7 @@ class MyTest {
         var stopTime = 0L
         var cpuCount = 0
         var cpuCapacity = 0.0
+        var networkCapacity = 0.0
         var memCapacity = 0.0
 
         while (!parser.isClosed) {
@@ -322,7 +323,6 @@ class MyTest {
 //                    "startTime $startTime\n" +
 //                    "stopTime $stopTime\n")
 
-                val bandwidthCapacity = 15000.0
                 vms.add(
                     ExtendedVirtualMachine(
                         uid,
@@ -330,7 +330,7 @@ class MyTest {
                         cpuCount,
                         cpuCapacity,
                         memCapacity.roundToLong(),
-                        bandwidthCapacity,
+                        networkCapacity,
                         totalLoad,
                         Instant.ofEpochMilli(startTime),
                         Instant.ofEpochMilli(stopTime),
@@ -351,6 +351,7 @@ class MyTest {
                 stopTime = 0
                 cpuCount = 0
                 cpuCapacity = 0.0
+                networkCapacity = 0.0
                 memCapacity = 0.0
 
                 continue
@@ -362,6 +363,7 @@ class MyTest {
                 "stopTime" -> stopTime = parser.valueAsLong
                 "cpuCount" -> cpuCount = parser.valueAsInt
                 "cpuCapacity" -> cpuCapacity = parser.valueAsDouble
+                "networkCapacity" -> networkCapacity = parser.valueAsDouble
                 "memCapacity" -> memCapacity = parser.valueAsDouble
             }
         }
@@ -456,6 +458,7 @@ class MyTest {
             .addColumn("stopTime", CsvSchema.ColumnType.NUMBER)
             .addColumn("cpuCount", CsvSchema.ColumnType.NUMBER)
             .addColumn("cpuCapacity", CsvSchema.ColumnType.NUMBER)
+            .addColumn("networkCapacity", CsvSchema.ColumnType.NUMBER)
             .addColumn("memCapacity", CsvSchema.ColumnType.NUMBER)
             .setAllowComments(true)
             .setUseHeader(true)
