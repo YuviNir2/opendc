@@ -35,10 +35,8 @@ import org.opendc.compute.service.scheduler.filters.RamFilter
 import org.opendc.compute.service.scheduler.filters.VCpuFilter
 import org.opendc.compute.service.scheduler.weights.CoreRamWeigher
  import org.opendc.experiments.compute.ExtendedVirtualMachine
- import org.opendc.experiments.compute.VirtualMachine
  import org.opendc.experiments.rsuv.topology.clusterTopology
  import org.opendc.experiments.compute.registerComputeMonitor
-import org.opendc.experiments.compute.replay
  import org.opendc.experiments.compute.replay2
  import org.opendc.experiments.compute.setupComputeService
 import org.opendc.experiments.compute.setupHosts
@@ -48,12 +46,12 @@ import org.opendc.experiments.compute.telemetry.table.ServiceTableReader
 import org.opendc.experiments.compute.topology.HostSpec
  import org.opendc.experiments.provisioner.Provisioner
  import org.opendc.simulator.compute.power.CpuPowerModels
+ import org.opendc.simulator.compute.power.NetworkPowerModels
  import org.opendc.simulator.compute.workload.SimTrace
 import org.opendc.simulator.kotlin.runSimulation
 import java.io.File
 import java.time.Instant
-import java.util.Random
-import java.util.UUID
+ import java.util.UUID
  import kotlin.math.ceil
  import kotlin.math.max
  import kotlin.math.roundToLong
@@ -136,12 +134,17 @@ class MyTest {
         MMOG, FPS, RTS
     }
 
+    enum class PacketRateLevel {
+        Low, Med, High
+    }
+
+    // TODO: write function to generate meta instead of getting it from a file
     private fun getWorkload(workloadDir: String) : List<ExtendedVirtualMachine> {
 //        println("In GetWorkload\n")
         val traceFile = baseDir.resolve("$workloadDir/numPlayersTrace3.csv")
         val metaFile = baseDir.resolve("$workloadDir/meta.csv")
 //        val fragments = parseFragments(traceFile)
-        val fragments = buildFragments2(traceFile, maxNumPlayersPerVm, GameType.MMOG)
+        val fragments = buildFragments2(traceFile, maxNumPlayersPerVm, GameType.MMOG, PacketRateLevel.Low)
         return parseMeta(metaFile, fragments)
     }
 
@@ -150,7 +153,7 @@ class MyTest {
      */
     private fun createTopology(name: String = "topology"): List<HostSpec> {
         val stream = checkNotNull(object {}.javaClass.getResourceAsStream("/env/$name.txt"))
-        return stream.use { clusterTopology(stream, CpuPowerModels.linear(350.0, 200.0)) }
+        return stream.use { clusterTopology(stream, CpuPowerModels.linear(350.0, 200.0), NetworkPowerModels.linear(50.0, 10.0)) }
     }
 
     class TestComputeMonitor : ComputeMonitor {
@@ -201,7 +204,7 @@ class MyTest {
         .enable(CsvParser.Feature.ALLOW_COMMENTS)
         .enable(CsvParser.Feature.TRIM_SPACES)
 
-    private fun buildFragments2(path: File, maxNumPlayers: Int, gameType: GameType): Map<Int, FragmentBuilder> {
+    private fun buildFragments2(path: File, maxNumPlayers: Int, gameType: GameType, packetRateLevel: PacketRateLevel): Map<Int, FragmentBuilder> {
         val fragments = mutableMapOf<Int, FragmentBuilder>()
         val parser = factory.createParser(path)
         parser.schema = numPlayersSchema
@@ -229,7 +232,7 @@ class MyTest {
 
                     if (remainingPlayers > maxNumPlayers) {
                         val usage = getUsage(gameType, maxNumPlayers, singlePlayerUsage)
-                        val networkUsage = getNetworkUsage(maxNumPlayers, singlePlayerNetworkUsage)
+                        val networkUsage = getNetworkUsage(packetRateLevel ,maxNumPlayers, singlePlayerNetworkUsage)
                         builder.add(timestampStart, timestampEnd, usage, maxCores, networkUsage)
                         remainingPlayers -= maxNumPlayers
                         println("remainingPlayers= $remainingPlayers\n" +
@@ -238,7 +241,7 @@ class MyTest {
                     }
                     else {
                         val usage = getUsage(gameType, remainingPlayers, singlePlayerUsage)
-                        val networkUsage = getNetworkUsage(remainingPlayers, singlePlayerNetworkUsage)
+                        val networkUsage = getNetworkUsage(packetRateLevel, remainingPlayers, singlePlayerNetworkUsage)
                         val cores = getNumCores(remainingPlayers.toDouble()/maxNumPlayers)
                         println("remainingPlayers= $remainingPlayers\n" +
                             "semi usage= $usage\n" +
@@ -285,8 +288,12 @@ class MyTest {
         }
     }
 
-    private fun getNetworkUsage(numPlayers: Int, singlePlayerUsage: Double) : Double {
-            return maxNetworkUsage - (singlePlayerUsage * numPlayers) + singlePlayerUsage
+    private fun getNetworkUsage(packetRateLevel: PacketRateLevel, numPlayers: Int, singlePlayerUsage: Double) : Double {
+        return when (packetRateLevel) {
+            PacketRateLevel.Low -> (singlePlayerUsage * numPlayers)/3
+            PacketRateLevel.Med -> (singlePlayerUsage * numPlayers)/2
+            PacketRateLevel.High -> singlePlayerUsage * numPlayers
+        }
     }
 
     private fun parseMeta(path: File, fragments: Map<Int, FragmentBuilder>): List<ExtendedVirtualMachine> {

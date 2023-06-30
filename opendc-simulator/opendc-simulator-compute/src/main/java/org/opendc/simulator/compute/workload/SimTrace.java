@@ -532,8 +532,8 @@ public final class SimTrace {
 
             float networkUsage = (float) networkUsageCol[index];
             for (int i = coreCount; i < nicCount+coreCount; i++) {
-                System.out.println("SimTrace onUpdate pushing with nic " + outputs[i].getName() + " " + i + " networkUsage=" + networkUsage + " input?=" +outputs[i].input.getName());
-                System.out.println("and where does it go? " + outputs[i].input.getHandler().getClass());
+                System.out.print("SimTrace onUpdate pushing with nic " + outputs[i].getName() + " " + i + " networkUsage=" + networkUsage + " input?=" +outputs[i].input.getName());
+                System.out.println(" and where does it go? " + outputs[i].input.getHandler().getClass());
                 outputs[i].push(networkUsage);
             }
 
