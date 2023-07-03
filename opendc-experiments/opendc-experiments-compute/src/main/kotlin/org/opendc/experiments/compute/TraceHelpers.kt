@@ -120,7 +120,7 @@ public suspend fun ComputeService.replay(
 }
 
 // TODO: move ExtendedVirtualMachine into my folder or a find a solution to solve the dependencies
-public suspend fun ComputeService.replay2(
+public suspend fun ComputeService.replayExtended(
     clock: InstantSource,
     trace: List<ExtendedVirtualMachine>,
     seed: Long,
@@ -172,7 +172,7 @@ public suspend fun ComputeService.replay2(
                     val server = client.newServer(
                         entry.name,
                         image,
-// TODO: Extend Flavor I think
+                        // TODO: Extend Flavor I think
                         client.newFlavor(
                             entry.name,
                             entry.cpuCount,

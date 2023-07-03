@@ -37,7 +37,7 @@ import org.opendc.compute.service.scheduler.weights.CoreRamWeigher
  import org.opendc.experiments.compute.ExtendedVirtualMachine
  import org.opendc.experiments.rsuv.topology.clusterTopology
  import org.opendc.experiments.compute.registerComputeMonitor
- import org.opendc.experiments.compute.replay2
+ import org.opendc.experiments.compute.replayExtended
  import org.opendc.experiments.compute.setupComputeService
 import org.opendc.experiments.compute.setupHosts
 import org.opendc.experiments.compute.telemetry.ComputeMonitor
@@ -101,7 +101,7 @@ class MyTest {
             )
 
             val service = provisioner.registry.resolve("compute.opendc.org", ComputeService::class.java)!!
-            service.replay2(timeSource, workload, seed)
+            service.replayExtended(timeSource, workload, seed)
         }
 
         println(
@@ -127,11 +127,17 @@ class MyTest {
 
     private val baseDir: File = File("src/test/resources/traces")
     private val maxUsage: Double = 15000.0
+    private val singlePlayerUsage = 150.0
+    private val singlePlayerNetworkUsage = 250.0
     private val maxNetworkUsage: Double = 25000.0
     private val maxCores: Int = 8
     private val maxNumPlayersPerVm = 100
+    private var numOfVmsNeeded = 0
+    private var globalStartTime = 0L
+    private var globalEndTime = 0L
+    private val vmMemoryCapacity = 64000L
     enum class GameType {
-        MMOG, FPS, RTS
+        TBS, FPS, MMORPG
     }
 
     enum class PacketRateLevel {
@@ -142,10 +148,11 @@ class MyTest {
     private fun getWorkload(workloadDir: String) : List<ExtendedVirtualMachine> {
 //        println("In GetWorkload\n")
         val traceFile = baseDir.resolve("$workloadDir/numPlayersTrace3.csv")
-        val metaFile = baseDir.resolve("$workloadDir/meta.csv")
+//        val metaFile = baseDir.resolve("$workloadDir/meta.csv")
 //        val fragments = parseFragments(traceFile)
-        val fragments = buildFragments2(traceFile, maxNumPlayersPerVm, GameType.MMOG, PacketRateLevel.Low)
-        return parseMeta(metaFile, fragments)
+        val fragments = buildFragments2(traceFile, maxNumPlayersPerVm, GameType.TBS, PacketRateLevel.Low)
+        return generateWorkload(fragments, maxNumPlayersPerVm , GameType.TBS);
+//        return parseMeta(metaFile, fragments)
     }
 
     /**
@@ -209,9 +216,6 @@ class MyTest {
         val parser = factory.createParser(path)
         parser.schema = numPlayersSchema
 
-        val singlePlayerUsage = maxUsage/maxNumPlayers
-        val singlePlayerNetworkUsage = maxNetworkUsage/maxNumPlayers
-
         var timestampStart = 0L
         var timestampEnd = 0L
         var numPlayersEnd = 0
@@ -221,11 +225,13 @@ class MyTest {
             if (token == JsonToken.END_OBJECT) {
                 if (timestampStart == 0L) {
                     timestampStart = timestampEnd
+                    globalStartTime = timestampStart
                     continue
                 }
 
                 var remainingPlayers = numPlayersEnd
                 val numVms = ceil(numPlayersEnd.toDouble()/maxNumPlayers).toInt()
+                if (numVms > numOfVmsNeeded) numOfVmsNeeded = numVms
 //                println("TimestampEnd=$timestampEnd Number of VM=$numVms")
                 for(i in 1..numVms) {
                     val builder = fragments.computeIfAbsent(i) { FragmentBuilder() }
@@ -256,8 +262,6 @@ class MyTest {
 //                    "timestampEnd $timestampEnd\n")
 
                 timestampStart = timestampEnd
-                timestampEnd = 0L
-                numPlayersEnd = 0
 
                 continue
             }
@@ -268,6 +272,7 @@ class MyTest {
             }
         }
 
+        globalEndTime = timestampEnd
         return fragments
     }
 
@@ -282,9 +287,9 @@ class MyTest {
 
     private fun getUsage(gameType: GameType, numPlayers: Int, singlePlayerUsage: Double) : Double {
         return when (gameType) {
-            GameType.MMOG -> singlePlayerUsage * numPlayers
+            GameType.TBS -> singlePlayerUsage * numPlayers
             GameType.FPS -> Math.pow(singlePlayerUsage, numPlayers.toDouble())
-            GameType.RTS -> singlePlayerUsage * numPlayers + Math.pow(numPlayers.toDouble(), 2.0)
+            GameType.MMORPG -> singlePlayerUsage * numPlayers + Math.pow(numPlayers.toDouble(), 2.0)
         }
     }
 
@@ -294,6 +299,47 @@ class MyTest {
             PacketRateLevel.Med -> (singlePlayerUsage * numPlayers)/2
             PacketRateLevel.High -> singlePlayerUsage * numPlayers
         }
+    }
+
+    private fun generateWorkload(fragments: Map<Int, FragmentBuilder>, maxNumPlayers: Int, gameType: GameType): List<ExtendedVirtualMachine> {
+        val vms = mutableListOf<ExtendedVirtualMachine>()
+        var counter = 0
+
+            for(i in 1..numOfVmsNeeded) {
+            if (!fragments.containsKey(i)) continue
+            val builder = fragments.getValue(i)
+            val totalLoad = builder.totalLoad
+            val uid = UUID.nameUUIDFromBytes("$i-${counter++}".toByteArray())
+            val maxCpuCapacityNeeded = getUsage(gameType, maxNumPlayers, singlePlayerUsage)
+            val maxNetworkCapacityNeeded = getNetworkUsage(PacketRateLevel.High, maxNumPlayers, singlePlayerNetworkUsage)
+                            println("adding VM:\n" +
+                    "UID $uid\n" +
+                    "ID $i\n" +
+                    "cpuCount $maxCores\n" +
+                    "cpuCapacity $maxCpuCapacityNeeded\n" +
+                    "memCapacity $vmMemoryCapacity\n" +
+                    "networkCapacity $maxNetworkCapacityNeeded\n" +
+                    "totalLoad $totalLoad\n" +
+                    "startTime $globalStartTime\n" +
+                    "stopTime $globalEndTime\n")
+            vms.add(
+                ExtendedVirtualMachine(
+                    uid,
+                    i.toString(),
+                    maxCores,
+                    maxCpuCapacityNeeded,
+                    vmMemoryCapacity,
+                    maxNetworkCapacityNeeded,
+                    totalLoad,
+                    Instant.ofEpochMilli(globalStartTime),
+                    Instant.ofEpochMilli(globalEndTime),
+                    builder.build(),
+                    null
+                )
+            )
+        }
+
+    return vms
     }
 
     private fun parseMeta(path: File, fragments: Map<Int, FragmentBuilder>): List<ExtendedVirtualMachine> {
@@ -320,15 +366,16 @@ class MyTest {
                 val builder = fragments.getValue(id)
                 val totalLoad = builder.totalLoad
                 val uid = UUID.nameUUIDFromBytes("$id-${counter++}".toByteArray())
-//                println("adding VM:\n" +
-//                    "UID $uid\n" +
-//                    "ID $id\n" +
-//                    "cpuCount $cpuCount\n" +
-//                    "cpuCapacity $cpuCapacity\n" +
-//                    "memCapacity $memCapacity\n" +
-//                    "totalLoad $totalLoad\n" +
-//                    "startTime $startTime\n" +
-//                    "stopTime $stopTime\n")
+                println("adding VM:\n" +
+                    "UID $uid\n" +
+                    "ID $id\n" +
+                    "cpuCount $cpuCount\n" +
+                    "cpuCapacity $cpuCapacity\n" +
+                    "memCapacity $memCapacity\n" +
+                    "networkCapacity $networkCapacity\n" +
+                    "totalLoad $totalLoad\n" +
+                    "startTime $startTime\n" +
+                    "stopTime $stopTime\n")
 
                 vms.add(
                     ExtendedVirtualMachine(
