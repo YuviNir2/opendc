@@ -148,7 +148,7 @@ public class SimPsuFactories {
             @Override
             public void onPush(InPort port, float demand) {
                 totalUsage += -port.getDemand() + demand;
-                System.out.println("SimPsuFactories handler Now=" + clock.millis() + " totalUsage="+ totalUsage + " demand=" + demand + " -port.getDemand()=" + -port.getDemand() + " port.name=" + port.getName()+ " port.capacity=" + port.getCapacity());
+//                System.out.println("SimPsuFactories handler Now=" + clock.millis() + " totalUsage="+ totalUsage + " demand=" + demand + " -port.getDemand()=" + -port.getDemand() + " port.name=" + port.getName()+ " port.capacity=" + port.getCapacity());
             }
 
             @Override
@@ -162,7 +162,7 @@ public class SimPsuFactories {
             @Override
             public void onPush(InPort port, float demand) {
                 totalBandwidth += -port.getDemand() + demand;
-                System.out.println("SimPsuFactories ethhandler Now=" + clock.millis() + " totalBandwidth="+ totalBandwidth + " demand=" + demand + " -port.getDemand()=" + -port.getDemand()+ " port.name=" + port.getName() + " port.capacity=" + port.getCapacity());
+//                System.out.println("SimPsuFactories ethhandler Now=" + clock.millis() + " totalBandwidth="+ totalBandwidth + " demand=" + demand + " -port.getDemand()=" + -port.getDemand()+ " port.name=" + port.getName() + " port.capacity=" + port.getCapacity());
             }
 
             @Override
@@ -241,8 +241,8 @@ public class SimPsuFactories {
 
             double usage = model.computePower(totalUsage / targetFreq);
             double networkUsage = networkModel.computePower(totalBandwidth / maxBandwidth);
-            System.out.print("SimPsuFactories usage=" + usage + " totalUsage=" + totalUsage + " targetFreq=" + targetFreq);
-            System.out.println(" networkUsage=" + networkUsage + " totalBandwidth=" + totalBandwidth + " maxBandwidth=" + maxBandwidth);
+//            System.out.print("SimPsuFactories usage=" + usage + " totalUsage=" + totalUsage + " targetFreq=" + targetFreq);
+//            System.out.println(" networkUsage=" + networkUsage + " totalBandwidth=" + totalBandwidth + " maxBandwidth=" + maxBandwidth);
             out.push((float) (usage + networkUsage));
             powerUsage = usage + networkUsage;
 

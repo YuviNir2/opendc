@@ -105,7 +105,7 @@ public final class FlowTransformer implements FlowStageLogic, FlowSource, FlowSi
         @Override
         public void onPush(InPort port, float demand) {
             float rate = transform.apply(demand);
-            System.out.println("FlowTransformer onPush output=" + output.getName() + " output.input=" + output.input);
+//            System.out.println("FlowTransformer onPush output=" + output.getName() + " output.input=" + output.input);
             output.push(rate);
         }
 

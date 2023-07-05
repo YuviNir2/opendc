@@ -526,14 +526,14 @@ public final class SimTrace {
             final OutPort[] outputs = this.outputs;
 
             for (int i = 0; i < cores; i++) {
-                System.out.println("pushing with cpu " + outputs[i].getName() + " " + i + " usage=" + usage + " input?=" +outputs[i].input.getName());
+//                System.out.println("pushing with cpu " + outputs[i].getName() + " " + i + " usage=" + usage + " input?=" +outputs[i].input.getName());
                 outputs[i].push(usage);
             }
 
             float networkUsage = (float) networkUsageCol[index];
             for (int i = coreCount; i < nicCount+coreCount; i++) {
-                System.out.print("SimTrace onUpdate pushing with nic " + outputs[i].getName() + " " + i + " networkUsage=" + networkUsage + " input?=" +outputs[i].input.getName());
-                System.out.println(" and where does it go? " + outputs[i].input.getHandler().getClass());
+//                System.out.print("SimTrace onUpdate pushing with nic " + outputs[i].getName() + " " + i + " networkUsage=" + networkUsage + " input?=" +outputs[i].input.getName());
+//                System.out.println(" and where does it go? " + outputs[i].input.getHandler().getClass());
                 outputs[i].push(networkUsage);
             }
 

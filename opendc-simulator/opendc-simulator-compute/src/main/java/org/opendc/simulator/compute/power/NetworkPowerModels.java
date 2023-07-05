@@ -1,5 +1,7 @@
 package org.opendc.simulator.compute.power;
 
+import org.opendc.simulator.compute.model.NetworkAdapter;
+
 /**
  * A collection {@link NetworkPowerModel} implementations.
  */
@@ -30,6 +32,10 @@ public class NetworkPowerModels {
 
     public static NetworkPowerModel cubic(double maxPower, double idlePower) {
         return new CubicPowerModel(maxPower, idlePower);
+    }
+
+    public static NetworkPowerModel zeroIdle(NetworkPowerModel delegate) {
+        return new NetworkPowerModels.ZeroIdlePowerDecorator(delegate);
     }
 
     private static final class ConstantPowerModel implements NetworkPowerModel {
@@ -118,6 +124,28 @@ public class NetworkPowerModels {
         @Override
         public double computePower(double utilization) {
             return idlePower + factor * Math.pow(utilization * 100, 3);
+        }
+    }
+
+    private static final class ZeroIdlePowerDecorator implements NetworkPowerModel {
+        private final NetworkPowerModel delegate;
+
+        ZeroIdlePowerDecorator(NetworkPowerModel delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public double computePower(double utilization) {
+            if (utilization == 0.0) {
+                return 0.0;
+            }
+
+            return delegate.computePower(utilization);
+        }
+
+        @Override
+        public String toString() {
+            return "ZeroIdlePowerDecorator[delegate=" + delegate + "]";
         }
     }
 }

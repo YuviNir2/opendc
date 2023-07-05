@@ -109,11 +109,11 @@ public final class MaxMinFlowMultiplexer implements FlowMultiplexer, FlowStageLo
         float capacity = this.capacity;
         float demand = this.demand;
         float rate = demand;
-        System.out.println("MaxMinFlowMultiplexer onUpdate capacity:" + capacity + " this.demand:" +demand + " this.rate:" + this.rate + " rates.length:" + rates.length + " getClass()=" + this.toString());
+//        System.out.println("MaxMinFlowMultiplexer onUpdate capacity:" + capacity + " this.demand:" +demand + " this.rate:" + this.rate + " rates.length:" + rates.length + " getClass()=" + this.toString());
 
         if (demand > capacity) {
             rate = redistributeCapacity(inlets, inputs, rates, capacity);
-            System.out.println("MaxMinFlowMultiplexer onUpdate after redistributeCapacity rate:" + rate + " this.rate:" + this.rate);
+//            System.out.println("MaxMinFlowMultiplexer onUpdate after redistributeCapacity rate:" + rate + " this.rate:" + this.rate);
         }
 
         if (this.rate != rate) {
@@ -244,7 +244,7 @@ public final class MaxMinFlowMultiplexer implements FlowMultiplexer, FlowStageLo
         for (int i = activeOutputs.nextSetBit(0); i != -1; i = activeOutputs.nextSetBit(i + 1)) {
             OutPort outlet = outlets[i];
             float fraction = outlet.getCapacity() / capacity;
-            System.out.println("MaxMinFlowMultiplexer changeRate outlet:" + outlet.getName() + " outlet.input:" + outlet.input.getName() + " outlet.capacity:" + outlet.getCapacity() + " capacity:" + capacity + " rate:" + rate + " fraction:" + fraction + " res:" + (rate*fraction));
+//            System.out.println("MaxMinFlowMultiplexer changeRate outlet:" + outlet.getName() + " outlet.input:" + outlet.input.getName() + " outlet.capacity:" + outlet.getCapacity() + " capacity:" + capacity + " rate:" + rate + " fraction:" + fraction + " res:" + (rate*fraction));
             outlet.push(rate * fraction);
         }
     }
@@ -260,9 +260,9 @@ public final class MaxMinFlowMultiplexer implements FlowMultiplexer, FlowStageLo
 
         @Override
         public void onPush(InPort port, float demand) {
-            System.out.print("MinMaxMultiplexer InHandler onPush " + port.getName() + " rates.size:" + rates.length + " port.getId:"+port.getId());
+//            System.out.print("MinMaxMultiplexer InHandler onPush " + port.getName() + " rates.size:" + rates.length + " port.getId:"+port.getId());
             MaxMinFlowMultiplexer.this.demand += -port.getDemand() + demand;
-            System.out.println(" this.demand " + MaxMinFlowMultiplexer.this.demand + " -port.getDemand():" + -port.getDemand() + " demand:"+demand + " getClass=" + MaxMinFlowMultiplexer.this.toString());
+//            System.out.println(" this.demand " + MaxMinFlowMultiplexer.this.demand + " -port.getDemand():" + -port.getDemand() + " demand:"+demand + " getClass=" + MaxMinFlowMultiplexer.this.toString());
             rates[port.getId()] = demand;
         }
 
@@ -281,7 +281,7 @@ public final class MaxMinFlowMultiplexer implements FlowMultiplexer, FlowStageLo
         @Override
         public void onPull(OutPort port, float capacity) {
             float newCapacity = MaxMinFlowMultiplexer.this.capacity - port.getCapacity() + capacity;
-                System.out.println("MultiplexerOutHandler onPull newCapacity:" + newCapacity + " this.capacity:" + MaxMinFlowMultiplexer.this.capacity + " outport.input:" + port.input.getName() + " outport.name:" + port.getName() + " -port.getCapacity():" + -port.getCapacity() + " capacity:" + capacity);
+//                System.out.println("MultiplexerOutHandler onPull newCapacity:" + newCapacity + " this.capacity:" + MaxMinFlowMultiplexer.this.capacity + " outport.input:" + port.input.getName() + " outport.name:" + port.getName() + " -port.getCapacity():" + -port.getCapacity() + " capacity:" + capacity);
                 MaxMinFlowMultiplexer.this.capacity = newCapacity;
             changeInletCapacity(newCapacity);
         }

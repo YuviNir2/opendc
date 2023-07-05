@@ -135,7 +135,7 @@ public final class OutPort implements Outlet {
         demand = rate;
         InPort input = this.input;
         if (input != null) {
-            System.out.println("OutPort push name:" +this.name + " input=" + input.getName() + " rate=" + rate);
+//            System.out.println("OutPort push name:" +this.name + " input=" + input.getName() + " rate=" + rate);
             input.push(rate);
         }
     }
