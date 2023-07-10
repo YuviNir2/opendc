@@ -55,6 +55,7 @@ import java.time.Instant
  import kotlin.math.ceil
  import kotlin.math.max
  import kotlin.math.roundToLong
+import kotlin.random.Random
 
 /**
  * An integration test suite for my experiments.
@@ -78,9 +79,29 @@ class MyTest {
     fun setUp() {
         monitor = TestComputeMonitor()
         computeScheduler = FilterScheduler(
-            filters = listOf(ComputeFilter(), VCpuFilter(1.0), RamFilter(1.0)),
+            filters = listOf(ComputeFilter(), VCpuFilter(2.0), RamFilter(1.0)),
             weighers = listOf(CoreRamWeigher(multiplier = 1.0))
         )
+    }
+
+    private val baseDir: File = File("src/test/resources")
+    //    private val maxUsage: Double = 15000.0
+//    private val maxNetworkUsage: Double = 25000.0
+    private val singlePlayerUsage = 1000.0
+    private val singlePlayerNetworkUsage = 250.0
+    private val maxCores: Int = 16
+    private val maxNumPlayersPerVm = 50
+    //    private val maxNumPlayersPerVmTotal = 10
+    private var numOfVmsNeeded = 0
+    private var globalStartTime = 0L
+    private var globalEndTime = 0L
+    private val vmMemoryCapacity = 96000L
+    enum class GameType {
+        TBS, FPS, MMORPG
+    }
+
+    enum class PacketRateLevel {
+        Low, Med, High
     }
 
     /**
@@ -90,7 +111,7 @@ class MyTest {
     fun testSmall() = runSimulation {
         val seed = 1L
         val topology = createTopology("dav4")
-        val workload = getWorkload("yuvi-trace", "play.inpvp.net_30000_pings.csv")
+        val workload = getWorkload("play.inpvp.net_30000_pings.csv")
         val monitor = monitor
 
         Provisioner(dispatcher, seed).use { provisioner ->
@@ -104,9 +125,15 @@ class MyTest {
             service.replayExtended(timeSource, workload, seed)
         }
 
+        val file = baseDir.resolve("results/result.txt")
+        file.bufferedWriter().use { writer ->
+            writer.write("Number of VMs successfully deployed;idleTime;activeTime;stealTime;lostTime;cpuDemand;cpuLimit;energyUsage(Total Energy Consumption);powerUsage;cpuUtilization\n")
+            writer.write("${monitor.attemptsSuccess};${monitor.idleTime};${monitor.activeTime};${monitor.stealTime};${monitor.lostTime};${monitor.cpuDemand};${monitor.cpuLimit};${monitor.totalEnergyUsage};${monitor.powerUsage};${monitor.cpuUtilization}\n")
+        }
+
         println(
             "\nScheduler: \n" +
-                "Success=${monitor.attemptsSuccess}\n" +
+                "Number of VMs successfully deployed=${monitor.attemptsSuccess}\n" +
 //                "Failure=${monitor.attemptsFailure}\n" +
 //                "Error=${monitor.attemptsError}\n" +
 //                "Pending=${monitor.serversPending}\n" +
@@ -119,35 +146,15 @@ class MyTest {
                 "cpuLimit=${monitor.cpuLimit}\n" +
                 "energyUsage(Total Energy Consumption)=${monitor.totalEnergyUsage}\n" +
                 "powerUsage=${monitor.powerUsage}\n" +
-                "cpuUtilization=${monitor.cpuUtilization}\n" +
-                "uptime=${monitor.uptime} \n"
+                "cpuUtilization=${monitor.cpuUtilization}\n"
+//                "uptime=${monitor.uptime} \n"
 //                "downtime=${monitor.downtime} \n"
         )
     }
 
-    private val baseDir: File = File("src/test/resources/traces")
-//    private val maxUsage: Double = 15000.0
-//    private val maxNetworkUsage: Double = 25000.0
-    private val singlePlayerUsage = 1000.0
-    private val singlePlayerNetworkUsage = 250.0
-    private val maxCores: Int = 32
-    private val maxNumPlayersPerVm = 100
-    private val maxNumPlayersPerVmTotal = 100
-    private var numOfVmsNeeded = 0
-    private var globalStartTime = 0L
-    private var globalEndTime = 0L
-    private val vmMemoryCapacity = 96000L
-    enum class GameType {
-        TBS, FPS, MMORPG
-    }
-
-    enum class PacketRateLevel {
-        Low, Med, High
-    }
-
-    private fun getWorkload(workloadDir: String, traceName: String) : List<ExtendedVirtualMachine> {
+    private fun getWorkload(traceName: String) : List<ExtendedVirtualMachine> {
 //        println("In GetWorkload\n")
-        val traceFile = baseDir.resolve("$workloadDir/$traceName")
+        val traceFile = baseDir.resolve("traces/$traceName")
 //        val metaFile = baseDir.resolve("$workloadDir/meta.csv")
 //        val fragments = parseFragments(traceFile)
         val fragments = buildFragments2(traceFile, maxNumPlayersPerVm, GameType.TBS, PacketRateLevel.Med)
@@ -233,28 +240,47 @@ class MyTest {
                 val numVms = ceil(numPlayersEnd.toDouble()/maxNumPlayers).toInt()
                 if (numVms > numOfVmsNeeded) numOfVmsNeeded = numVms
 //                println("TimestampEnd=$timestampEnd Number of VM=$numVms")
-                for(i in 1..numVms) {
+                var i = 1;
+                while (remainingPlayers > maxNumPlayers) {
                     val builder = fragments.computeIfAbsent(i) { FragmentBuilder() }
-
-                    if (remainingPlayers > maxNumPlayers) {
-                        val usage = getUsage(gameType, maxNumPlayers, singlePlayerUsage)
-                        val networkUsage = getNetworkUsage(packetRateLevel ,maxNumPlayers, singlePlayerNetworkUsage)
-                        builder.add(timestampStart, timestampEnd, usage, maxCores, networkUsage)
-                        remainingPlayers -= maxNumPlayers
-//                        println("remainingPlayers= $remainingPlayers\n" +
-//                            "semi usage= $usage\n" +
-//                            "max cores= $maxCores")
-                    }
-                    else {
-                        val usage = getUsage(gameType, remainingPlayers, singlePlayerUsage)
-                        val networkUsage = getNetworkUsage(packetRateLevel, remainingPlayers, singlePlayerNetworkUsage)
-                        val cores = getNumCores(remainingPlayers.toDouble()/maxNumPlayers)
-//                        println("remainingPlayers= $remainingPlayers\n" +
-//                            "semi usage= $usage\n" +
-//                            "semi cores= $cores")
-                        builder.add(timestampStart, timestampEnd, usage, cores, networkUsage)
-                    }
+                    val numPlayersOnVm = Random.nextInt(1, maxNumPlayers)
+                    val usage = getUsage(gameType, numPlayersOnVm, singlePlayerUsage)
+                    val networkUsage = getNetworkUsage(packetRateLevel ,numPlayersOnVm, singlePlayerNetworkUsage)
+                    val cores = getNumCores(numPlayersOnVm.toDouble()/maxNumPlayers)
+//                    println("i=$i + numPlayersOnVm=$numPlayersOnVm + usage=$usage + networkUsage=$networkUsage + cores=$cores")
+                    builder.add(timestampStart, timestampEnd, usage, cores, networkUsage)
+                    remainingPlayers -= numPlayersOnVm
+                    if (numOfVmsNeeded < i) numOfVmsNeeded = i
+                    i++
                 }
+                val builder = fragments.computeIfAbsent(i) { FragmentBuilder() }
+                val usage = getUsage(gameType, remainingPlayers, singlePlayerUsage)
+                val networkUsage = getNetworkUsage(packetRateLevel ,remainingPlayers, singlePlayerNetworkUsage)
+                val cores = getNumCores(remainingPlayers.toDouble()/maxNumPlayers)
+//                println("i=$i + remainingPlayers=$remainingPlayers + usage=$usage + networkUsage=$networkUsage + cores=$cores")
+                builder.add(timestampStart, timestampEnd, usage, cores, networkUsage)
+//                for(i in 1..numVms) {
+//                    val builder = fragments.computeIfAbsent(i) { FragmentBuilder() }
+//
+//                    if (remainingPlayers > maxNumPlayers) {
+//                        val usage = getUsage(gameType, maxNumPlayers, singlePlayerUsage)
+//                        val networkUsage = getNetworkUsage(packetRateLevel ,maxNumPlayers, singlePlayerNetworkUsage)
+//                        builder.add(timestampStart, timestampEnd, usage, maxCores, networkUsage)
+//                        remainingPlayers -= maxNumPlayers
+////                        println("remainingPlayers= $remainingPlayers\n" +
+////                            "semi usage= $usage\n" +
+////                            "max cores= $maxCores")
+//                    }
+//                    else {
+//                        val usage = getUsage(gameType, remainingPlayers, singlePlayerUsage)
+//                        val networkUsage = getNetworkUsage(packetRateLevel, remainingPlayers, singlePlayerNetworkUsage)
+//                        val cores = getNumCores(remainingPlayers.toDouble()/maxNumPlayers)
+////                        println("remainingPlayers= $remainingPlayers\n" +
+////                            "semi usage= $usage\n" +
+////                            "semi cores= $cores")
+//                        builder.add(timestampStart, timestampEnd, usage, cores, networkUsage)
+//                    }
+//                }
 
 //                println("NUM PLAYERS FUNCTION\n" +
 //                    "numPlayersEnd $numPlayersEnd\n"+
@@ -304,9 +330,9 @@ class MyTest {
     private fun generateWorkload(fragments: Map<Int, FragmentBuilder>, maxNumPlayers: Int, gameType: GameType): List<ExtendedVirtualMachine> {
         val vms = mutableListOf<ExtendedVirtualMachine>()
         var counter = 0
-        val maxCpuCapacityNeeded = getUsage(gameType, maxNumPlayersPerVmTotal, singlePlayerUsage)
-        val maxNetworkCapacityNeeded = getNetworkUsage(PacketRateLevel.High, maxNumPlayersPerVmTotal, singlePlayerNetworkUsage)
-        println("maxCpuCapacityNeeded $maxCpuCapacityNeeded")
+        val maxCpuCapacityNeeded = getUsage(gameType, maxNumPlayers, singlePlayerUsage)
+        val maxNetworkCapacityNeeded = getNetworkUsage(PacketRateLevel.High, maxNumPlayers, singlePlayerNetworkUsage)
+        println("maxCpuCapacityNeeded $maxCpuCapacityNeeded maxNetworkCapacityNeeded $maxNetworkCapacityNeeded")
 
             for(i in 1..numOfVmsNeeded) {
             if (!fragments.containsKey(i)) continue
