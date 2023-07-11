@@ -79,7 +79,7 @@ class MyTest {
     fun setUp() {
         monitor = TestComputeMonitor()
         computeScheduler = FilterScheduler(
-            filters = listOf(ComputeFilter(), VCpuFilter(2.0), RamFilter(1.0)),
+            filters = listOf(ComputeFilter(), VCpuFilter(3.0), RamFilter(1.0)),
             weighers = listOf(CoreRamWeigher(multiplier = 1.0))
         )
     }
@@ -259,33 +259,6 @@ class MyTest {
                 val cores = getNumCores(remainingPlayers.toDouble()/maxNumPlayers)
 //                println("i=$i + remainingPlayers=$remainingPlayers + usage=$usage + networkUsage=$networkUsage + cores=$cores")
                 builder.add(timestampStart, timestampEnd, usage, cores, networkUsage)
-//                for(i in 1..numVms) {
-//                    val builder = fragments.computeIfAbsent(i) { FragmentBuilder() }
-//
-//                    if (remainingPlayers > maxNumPlayers) {
-//                        val usage = getUsage(gameType, maxNumPlayers, singlePlayerUsage)
-//                        val networkUsage = getNetworkUsage(packetRateLevel ,maxNumPlayers, singlePlayerNetworkUsage)
-//                        builder.add(timestampStart, timestampEnd, usage, maxCores, networkUsage)
-//                        remainingPlayers -= maxNumPlayers
-////                        println("remainingPlayers= $remainingPlayers\n" +
-////                            "semi usage= $usage\n" +
-////                            "max cores= $maxCores")
-//                    }
-//                    else {
-//                        val usage = getUsage(gameType, remainingPlayers, singlePlayerUsage)
-//                        val networkUsage = getNetworkUsage(packetRateLevel, remainingPlayers, singlePlayerNetworkUsage)
-//                        val cores = getNumCores(remainingPlayers.toDouble()/maxNumPlayers)
-////                        println("remainingPlayers= $remainingPlayers\n" +
-////                            "semi usage= $usage\n" +
-////                            "semi cores= $cores")
-//                        builder.add(timestampStart, timestampEnd, usage, cores, networkUsage)
-//                    }
-//                }
-
-//                println("NUM PLAYERS FUNCTION\n" +
-//                    "numPlayersEnd $numPlayersEnd\n"+
-//                    "timestampStart $timestampStart\n" +
-//                    "timestampEnd $timestampEnd\n")
 
                 timestampStart = timestampEnd
 

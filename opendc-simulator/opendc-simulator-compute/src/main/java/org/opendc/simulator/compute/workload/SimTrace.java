@@ -489,7 +489,6 @@ public final class SimTrace {
                 final OutPort output = stage.getOutlet("ethST" + i);
                 SimHypervisor.VNic n = (SimHypervisor.VNic)nic;
                 graph.connect(output, n.getInput());
-//                graph.connect(n.getRx(), n.getTx());
                 outputs[i+coreCount] = output;
             }
         }
@@ -530,8 +529,12 @@ public final class SimTrace {
                 outputs[i].push(usage);
             }
 
+            for (int i = cores; i < outputs.length-nicCount; i++) {
+                outputs[i].push(0.f);
+            }
+
             float networkUsage = (float) networkUsageCol[index];
-            for (int i = coreCount; i < nicCount+coreCount; i++) {
+            for (int i = cores; i < nicCount+cores; i++) {
 //                System.out.print("SimTrace onUpdate pushing with nic " + outputs[i].getName() + " " + i + " networkUsage=" + networkUsage + " input?=" +outputs[i].input.getName());
 //                System.out.println(" and where does it go? " + outputs[i].input.getHandler().getClass());
                 outputs[i].push(networkUsage);
