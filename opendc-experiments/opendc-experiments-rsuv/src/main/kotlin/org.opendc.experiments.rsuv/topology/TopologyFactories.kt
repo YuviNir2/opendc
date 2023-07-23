@@ -53,7 +53,7 @@ private val reader = ClusterSpecReader()
 fun clusterTopology(
     file: File,
     powerModel: CpuPowerModel = CpuPowerModels.linear(350.0, 200.0),
-    networkModel: NetworkPowerModel = NetworkPowerModels.linear(50.0, 10.0),
+    networkModel: NetworkPowerModel = NetworkPowerModels.zeroIdle(NetworkPowerModels.linear(50.0, 10.0)),
     random: RandomGenerator = SplittableRandom(0)
 ): List<HostSpec> {
     return clusterTopology(reader.read(file), powerModel, networkModel, random)
@@ -65,7 +65,7 @@ fun clusterTopology(
 fun clusterTopology(
     input: InputStream,
     powerModel: CpuPowerModel = CpuPowerModels.linear(350.0, 200.0),
-    networkModel: NetworkPowerModel = NetworkPowerModels.linear(50.0, 10.0),
+    networkModel: NetworkPowerModel = NetworkPowerModels.zeroIdle(NetworkPowerModels.linear(50.0, 10.0)),
     random: RandomGenerator = SplittableRandom(0)
 ): List<HostSpec> {
     return clusterTopology(reader.read(input), powerModel, networkModel, random)
@@ -88,7 +88,6 @@ private fun ClusterSpec.toHostSpecs(random: RandomGenerator, powerModel: CpuPowe
 
     val unknownProcessingNode = ProcessingNode("unknown", "unknown", "unknown", cpuCountPerHost)
     val unknownMemoryUnit = MemoryUnit("unknown", "unknown", -1.0, memoryPerHost)
-    // TODO: make safe in case Nic not provided
     val unknownNetworkUnit = NetworkAdapter("unknown", "unknown", bandWidthPerNic)
     val machineModel = MachineModel(
         List(cpuCountPerHost) { coreId -> ProcessingUnit(unknownProcessingNode, coreId, cpuSpeed) },

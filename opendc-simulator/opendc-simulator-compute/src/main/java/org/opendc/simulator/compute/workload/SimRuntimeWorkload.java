@@ -24,7 +24,9 @@ package org.opendc.simulator.compute.workload;
 
 import java.util.List;
 import org.opendc.simulator.compute.SimMachineContext;
+import org.opendc.simulator.compute.SimNetworkInterface;
 import org.opendc.simulator.compute.SimProcessingUnit;
+import org.opendc.simulator.compute.kernel.SimHypervisor;
 import org.opendc.simulator.flow2.FlowGraph;
 import org.opendc.simulator.flow2.FlowStage;
 import org.opendc.simulator.flow2.FlowStageLogic;
@@ -62,6 +64,7 @@ public class SimRuntimeWorkload implements SimWorkload, FlowStageLogic {
         this.remainingDuration = duration;
     }
 
+    // TODO: Add push for nics
     @Override
     public void onStart(SimMachineContext ctx) {
         this.ctx = ctx;
@@ -71,16 +74,25 @@ public class SimRuntimeWorkload implements SimWorkload, FlowStageLogic {
         this.stage = stage;
 
         final List<? extends SimProcessingUnit> cpus = ctx.getCpus();
+        final List<? extends SimNetworkInterface> nics = ctx.getNetworkInterfaces();
         final OutPort[] outputs = new OutPort[cpus.size()];
-        this.outputs = outputs;
+         this.outputs = outputs;
 
         for (int i = 0; i < cpus.size(); i++) {
             final SimProcessingUnit cpu = cpus.get(i);
-            final OutPort output = stage.getOutlet("cpu" + i);
+            final OutPort output = stage.getOutlet("cpuSRW" + i);
 
             graph.connect(output, cpu.getInput());
             outputs[i] = output;
         }
+
+//        for (int i = 0; i < nics.size(); i++) {
+//            final SimNetworkInterface nic = nics.get(i);
+//            final OutPort output = stage.getOutlet("ethSRW" + i);
+//            SimHypervisor.VNic n = (SimHypervisor.VNic)nic;
+//            graph.connect(output, n.getInput());
+//            outputs[i+cpus.size()] = output;
+//        }
 
         this.remainingDuration = duration;
         this.lastUpdate = graph.getEngine().getClock().millis();

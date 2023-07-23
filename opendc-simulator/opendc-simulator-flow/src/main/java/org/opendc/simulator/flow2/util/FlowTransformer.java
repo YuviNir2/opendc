@@ -101,7 +101,6 @@ public final class FlowTransformer implements FlowStageLogic, FlowSource, FlowSi
             return transform.applyInverse(output.getRate());
         }
 
-        // TODO: output.input here is null which seems wrong, is this why the demand isn't trickling down?
         @Override
         public void onPush(InPort port, float demand) {
             float rate = transform.apply(demand);

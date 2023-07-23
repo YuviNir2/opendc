@@ -143,6 +143,7 @@ public class SimHost(
         return guests.keys
     }
 
+    // TODO: Is there where I should check that there's enough bandwidth maybe?
     override fun canFit(server: Server): Boolean {
         val sufficientMemory = model.memoryCapacity >= server.flavor.memorySize
         val enoughCpus = model.cpuCount >= server.flavor.cpuCount
@@ -349,10 +350,17 @@ public class SimHost(
         val processingUnits = (0 until cpuCount).map { ProcessingUnit(processingNode, it, cpuCapacity) }
         val memoryUnits = listOf(MemoryUnit("Generic", "Generic", 3200.0, memorySize))
 
-        // TODO: make safe in case network not taken into consideration
-        val originalNic = machine.model.network[0]
-        val bandwidthCapacity = (this.meta["bandwidth-capacity"] as? Double ?: Double.MAX_VALUE).coerceAtMost(originalNic.bandwidth)
-        val networkUnits = listOf(NetworkAdapter(originalNic.vendor, originalNic.modelName, bandwidthCapacity))
+        // TODO: Make nicer
+        var networkUnits: List<NetworkAdapter>
+        if (machine.model.network.isNotEmpty()) {
+            val originalNic = machine.model.network[0]
+            val bandwidthCapacity =
+                (this.meta["bandwidth-capacity"] as? Double ?: Double.MAX_VALUE).coerceAtMost(originalNic.bandwidth)
+            networkUnits = listOf(NetworkAdapter(originalNic.vendor, originalNic.modelName, bandwidthCapacity))
+        }
+        else {
+            networkUnits = listOf()
+        }
         val model = MachineModel(processingUnits, memoryUnits, networkUnits)
         return if (optimize) model.optimize() else model
     }

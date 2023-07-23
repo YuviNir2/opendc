@@ -148,7 +148,7 @@ public class SimPsuFactories {
             @Override
             public void onPush(InPort port, float demand) {
                 totalUsage += -port.getDemand() + demand;
-//                System.out.println("SimPsuFactories handler Now=" + clock.millis() + " totalUsage="+ totalUsage + " demand=" + demand + " -port.getDemand()=" + -port.getDemand() + " port.name=" + port.getName()+ " port.capacity=" + port.getCapacity());
+//                System.out.println("SimPsuFactories cpuhandler Now=" + clock.millis() + " totalUsage="+ totalUsage + " demand=" + demand + " -port.getDemand()=" + -port.getDemand() + " port.name=" + port.getName()+ " port.capacity=" + port.getCapacity());
             }
 
             @Override
@@ -174,7 +174,7 @@ public class SimPsuFactories {
         SimplePsu(FlowGraph graph, CpuPowerModel model) {
             this.stage = graph.newStage(this);
             this.model = model;
-            this.networkModel = NetworkPowerModels.linear(50, 10);
+            this.networkModel = NetworkPowerModels.zeroIdle(NetworkPowerModels.linear(50, 10));
             this.clock = graph.getEngine().getClock();
             this.out = stage.getOutlet("out");
             this.out.setMask(true);

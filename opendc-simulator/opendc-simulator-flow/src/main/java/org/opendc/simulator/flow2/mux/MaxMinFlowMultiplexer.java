@@ -197,7 +197,6 @@ public final class MaxMinFlowMultiplexer implements FlowMultiplexer, FlowStageLo
     /**
      * Helper function to redistribute the specified capacity across the inlets.
      */
-    // TODO: separate redistributeCapacity so that there's one for cpuCapacity and one for networkCapacity
     private static float redistributeCapacity(InPort[] inlets, long[] inputs, float[] rates, float capacity) {
         // If the demand is higher than the capacity, we need use max-min fair sharing to distribute the
         // constrained capacity across the inputs.
@@ -234,11 +233,9 @@ public final class MaxMinFlowMultiplexer implements FlowMultiplexer, FlowStageLo
         return capacity - availableCapacity;
     }
 
-    // TODO: figure out how to separate between capacity and networkCapacity cause what's being pushed now is according to the cpu usage.
     /**
      * Helper method to change the rate of the outlets.
      */
-    // TODO: separate changeRate so that there's one for cpuCapacity and one for networkCapacity
     private static void changeRate(BitSet activeOutputs, OutPort[] outlets, float capacity, float rate) {
         // Divide the requests over the available capacity of the input resources fairly
         for (int i = activeOutputs.nextSetBit(0); i != -1; i = activeOutputs.nextSetBit(i + 1)) {

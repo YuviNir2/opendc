@@ -85,13 +85,10 @@ class MyTest {
     }
 
     private val baseDir: File = File("src/test/resources")
-    //    private val maxUsage: Double = 15000.0
-//    private val maxNetworkUsage: Double = 25000.0
     private val singlePlayerUsage = 1000.0
-    private val singlePlayerNetworkUsage = 250.0
+    private val singlePlayerNetworkUsage = 500.0
     private val maxCores: Int = 16
     private val maxNumPlayersPerVm = 50
-    //    private val maxNumPlayersPerVmTotal = 10
     private var numOfVmsNeeded = 0
     private var globalStartTime = 0L
     private var globalEndTime = 0L
@@ -104,14 +101,15 @@ class MyTest {
         Low, Med, High
     }
 
+    //play.inpvp.net_1000_pings
     /**
      * Test a small simulation setup.
      */
     @Test
     fun testSmall() = runSimulation {
         val seed = 1L
-        val topology = createTopology("dav4")
-        val workload = getWorkload("play.inpvp.net_30000_pings.csv")
+        val topology = createTopology("topology")
+        val workload = getWorkload("simple_trace.csv")
         val monitor = monitor
 
         Provisioner(dispatcher, seed).use { provisioner ->
@@ -134,10 +132,10 @@ class MyTest {
         println(
             "\nScheduler: \n" +
                 "Number of VMs successfully deployed=${monitor.attemptsSuccess}\n" +
-//                "Failure=${monitor.attemptsFailure}\n" +
-//                "Error=${monitor.attemptsError}\n" +
-//                "Pending=${monitor.serversPending}\n" +
-//                "Active=${monitor.serversActive}\n" +
+                "Failure=${monitor.attemptsFailure}\n" +
+                "Error=${monitor.attemptsError}\n" +
+                "Pending=${monitor.serversPending}\n" +
+                "Active=${monitor.serversActive}\n" +
                 "idleTime=${monitor.idleTime}\n" +
                 "activeTime=${monitor.activeTime}\n" +
                 "stealTime=${monitor.stealTime}\n" +
@@ -146,9 +144,9 @@ class MyTest {
                 "cpuLimit=${monitor.cpuLimit}\n" +
                 "energyUsage(Total Energy Consumption)=${monitor.totalEnergyUsage}\n" +
                 "powerUsage=${monitor.powerUsage}\n" +
-                "cpuUtilization=${monitor.cpuUtilization}\n"
-//                "uptime=${monitor.uptime} \n"
-//                "downtime=${monitor.downtime} \n"
+                "cpuUtilization=${monitor.cpuUtilization}\n" +
+                "uptime=${monitor.uptime} \n" +
+                "downtime=${monitor.downtime} \n"
         )
     }
 
@@ -157,8 +155,8 @@ class MyTest {
         val traceFile = baseDir.resolve("traces/$traceName")
 //        val metaFile = baseDir.resolve("$workloadDir/meta.csv")
 //        val fragments = parseFragments(traceFile)
-        val fragments = buildFragments2(traceFile, maxNumPlayersPerVm, GameType.TBS, PacketRateLevel.Med)
-        return generateWorkload(fragments, maxNumPlayersPerVm , GameType.TBS);
+        val fragments = buildFragments2(traceFile, maxNumPlayersPerVm, GameType.TBS, PacketRateLevel.High)
+        return generateWorkload(fragments, maxNumPlayersPerVm , GameType.TBS)
 //        return parseMeta(metaFile, fragments)
     }
 
@@ -167,7 +165,7 @@ class MyTest {
      */
     private fun createTopology(name: String = "topology"): List<HostSpec> {
         val stream = checkNotNull(object {}.javaClass.getResourceAsStream("/env/$name.txt"))
-        return stream.use { clusterTopology(stream, CpuPowerModels.linear(350.0, 200.0), NetworkPowerModels.linear(50.0, 10.0)) }
+        return stream.use { clusterTopology(stream, CpuPowerModels.linear(350.0, 200.0), NetworkPowerModels.linear(86.0, 24.0)) }
     }
 
     class TestComputeMonitor : ComputeMonitor {
@@ -239,7 +237,7 @@ class MyTest {
                 var remainingPlayers = numPlayersEnd
                 val numVms = ceil(numPlayersEnd.toDouble()/maxNumPlayers).toInt()
                 if (numVms > numOfVmsNeeded) numOfVmsNeeded = numVms
-//                println("TimestampEnd=$timestampEnd Number of VM=$numVms")
+                println("TimestampEnd=$timestampEnd Number of VM=$numVms")
                 var i = 1;
                 while (remainingPlayers > maxNumPlayers) {
                     val builder = fragments.computeIfAbsent(i) { FragmentBuilder() }
@@ -305,7 +303,7 @@ class MyTest {
         var counter = 0
         val maxCpuCapacityNeeded = getUsage(gameType, maxNumPlayers, singlePlayerUsage)
         val maxNetworkCapacityNeeded = getNetworkUsage(PacketRateLevel.High, maxNumPlayers, singlePlayerNetworkUsage)
-        println("maxCpuCapacityNeeded $maxCpuCapacityNeeded maxNetworkCapacityNeeded $maxNetworkCapacityNeeded")
+        println("maxCpuCapacityNeeded $maxCpuCapacityNeeded maxNetworkCapacityNeeded $maxNetworkCapacityNeeded \n")
 
             for(i in 1..numOfVmsNeeded) {
             if (!fragments.containsKey(i)) continue

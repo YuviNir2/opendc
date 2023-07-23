@@ -75,7 +75,6 @@ public final class SimTrace {
         this.size = size;
     }
 
-    // TODO: make sure the other constructor is ok even if network usage isn't provided
     private SimTrace(double[] usageCol, double[] networkUsageCol, long[] deadlineCol, int[] coresCol, int size) {
         if (size < 0) {
             throw new IllegalArgumentException("Invalid trace size");
@@ -296,7 +295,7 @@ public final class SimTrace {
         @Override
         public void onStart(SimMachineContext ctx) {
             final WorkloadStageLogic logic;
-            if (ctx.getCpus().size() == 1) {
+            if (ctx.getCpus().size() == 1 && ctx.getNetworkInterfaces().isEmpty()) {
                 logic = new SingleWorkloadLogic(ctx, offset, usageCol, networkUsageCol, deadlineCol, size, index);
             } else {
                 logic = new MultiWorkloadLogic(ctx, offset, usageCol, networkUsageCol, deadlineCol, coresCol, size, index);

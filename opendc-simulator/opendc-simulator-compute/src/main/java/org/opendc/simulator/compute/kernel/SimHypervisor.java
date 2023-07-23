@@ -243,7 +243,7 @@ public final class SimHypervisor implements SimWorkload {
             return false;
         }
 
-        // TODO: Add && that also checks that the NICs fit
+        // TODO: Add && that also checks that the NICs fit (Even though it's not very important because it's not being tested properly for CPU as well)
         final FlowMultiplexer cpuMultiplexer = context.cpuMultiplexer;
         return (cpuMultiplexer.getMaxInputs() - cpuMultiplexer.getInputCount())
                 >= model.getCpus().size();

@@ -136,7 +136,7 @@ public class NetworkPowerModels {
 
         @Override
         public double computePower(double utilization) {
-            if (utilization == 0.0) {
+            if (utilization == 0.0 || Double.isNaN(utilization)) {
                 return 0.0;
             }
 
