@@ -54,7 +54,6 @@ import java.time.Instant
  import java.util.UUID
  import kotlin.math.ceil
  import kotlin.math.max
- import kotlin.math.roundToLong
 import kotlin.random.Random
 
 /**
@@ -86,8 +85,9 @@ class MyTest {
 
     private val baseDir: File = File("src/test/resources")
     private val singlePlayerUsage = 1000.0
-    private val singlePlayerNetworkUsage = 500.0
+    private val singlePlayerNetworkUsage = 10.0
     private val maxCores: Int = 16
+    private val maxNics: Int = 2
     private val maxNumPlayersPerVm = 50
     private var numOfVmsNeeded = 0
     private var globalStartTime = 0L
@@ -97,8 +97,8 @@ class MyTest {
         TBS, FPS, MMORPG
     }
 
-    enum class PacketRateLevel {
-        Low, Med, High
+    enum class DataRateLevel {
+        Linear, Square, Cubic
     }
 
     //play.inpvp.net_1000_pings
@@ -108,8 +108,8 @@ class MyTest {
     @Test
     fun testSmall() = runSimulation {
         val seed = 1L
-        val topology = createTopology("topology")
-        val workload = getWorkload("simple_trace.csv")
+        val topology = createTopology("dav4")
+        val workload = getWorkload("play.inpvp.net_30000_pings.csv")
         val monitor = monitor
 
         Provisioner(dispatcher, seed).use { provisioner ->
@@ -145,19 +145,19 @@ class MyTest {
                 "energyUsage(Total Energy Consumption)=${monitor.totalEnergyUsage}\n" +
                 "powerUsage=${monitor.powerUsage}\n" +
                 "cpuUtilization=${monitor.cpuUtilization}\n" +
+                "nicUsage=${monitor.nicUsage}\n" +
+                "nicUtilization=${monitor.nicUtilization}\n" +
+                "nicDemand=${monitor.nicDemand}\n" +
+                "nicLimit=${monitor.nicLimit}\n" +
                 "uptime=${monitor.uptime} \n" +
                 "downtime=${monitor.downtime} \n"
         )
     }
 
     private fun getWorkload(traceName: String) : List<ExtendedVirtualMachine> {
-//        println("In GetWorkload\n")
         val traceFile = baseDir.resolve("traces/$traceName")
-//        val metaFile = baseDir.resolve("$workloadDir/meta.csv")
-//        val fragments = parseFragments(traceFile)
-        val fragments = buildFragments2(traceFile, maxNumPlayersPerVm, GameType.TBS, PacketRateLevel.High)
+        val fragments = buildFragments2(traceFile, maxNumPlayersPerVm, GameType.TBS, DataRateLevel.Cubic)
         return generateWorkload(fragments, maxNumPlayersPerVm , GameType.TBS)
-//        return parseMeta(metaFile, fragments)
     }
 
     /**
@@ -195,6 +195,10 @@ class MyTest {
         var cpuDemand = 0.0
         var cpuUtilization = 0.0
         var powerUsage = 0.0
+        var nicUsage = 0.0
+        var nicDemand = 0.0
+        var nicLimit = 0.0
+        var nicUtilization = 0.0
 
         override fun record(reader: HostTableReader) {
             idleTime += reader.cpuIdleTime
@@ -209,6 +213,10 @@ class MyTest {
             cpuDemand += reader.cpuDemand
             cpuUtilization += reader.cpuUtilization
             powerUsage += reader.powerUsage
+            nicUsage += reader.nicUsage
+            nicDemand += reader.nicDemand
+            nicLimit += reader.nicLimit
+            nicUtilization += reader.nicUtilization
         }
     }
 
@@ -216,7 +224,7 @@ class MyTest {
         .enable(CsvParser.Feature.ALLOW_COMMENTS)
         .enable(CsvParser.Feature.TRIM_SPACES)
 
-    private fun buildFragments2(path: File, maxNumPlayers: Int, gameType: GameType, packetRateLevel: PacketRateLevel): Map<Int, FragmentBuilder> {
+    private fun buildFragments2(path: File, maxNumPlayers: Int, gameType: GameType, dataRateLevel: DataRateLevel): Map<Int, FragmentBuilder> {
         val fragments = mutableMapOf<Int, FragmentBuilder>()
         val parser = factory.createParser(path)
         parser.schema = numPlayersSchema
@@ -237,13 +245,13 @@ class MyTest {
                 var remainingPlayers = numPlayersEnd
                 val numVms = ceil(numPlayersEnd.toDouble()/maxNumPlayers).toInt()
                 if (numVms > numOfVmsNeeded) numOfVmsNeeded = numVms
-                println("TimestampEnd=$timestampEnd Number of VM=$numVms")
+//                println("TimestampEnd=$timestampEnd Number of VM=$numVms")
                 var i = 1;
                 while (remainingPlayers > maxNumPlayers) {
                     val builder = fragments.computeIfAbsent(i) { FragmentBuilder() }
                     val numPlayersOnVm = Random.nextInt(1, maxNumPlayers)
                     val usage = getUsage(gameType, numPlayersOnVm, singlePlayerUsage)
-                    val networkUsage = getNetworkUsage(packetRateLevel ,numPlayersOnVm, singlePlayerNetworkUsage)
+                    val networkUsage = getNetworkUsage(dataRateLevel ,numPlayersOnVm, singlePlayerNetworkUsage)
                     val cores = getNumCores(numPlayersOnVm.toDouble()/maxNumPlayers)
 //                    println("i=$i + numPlayersOnVm=$numPlayersOnVm + usage=$usage + networkUsage=$networkUsage + cores=$cores")
                     builder.add(timestampStart, timestampEnd, usage, cores, networkUsage)
@@ -253,7 +261,7 @@ class MyTest {
                 }
                 val builder = fragments.computeIfAbsent(i) { FragmentBuilder() }
                 val usage = getUsage(gameType, remainingPlayers, singlePlayerUsage)
-                val networkUsage = getNetworkUsage(packetRateLevel ,remainingPlayers, singlePlayerNetworkUsage)
+                val networkUsage = getNetworkUsage(dataRateLevel ,remainingPlayers, singlePlayerNetworkUsage)
                 val cores = getNumCores(remainingPlayers.toDouble()/maxNumPlayers)
 //                println("i=$i + remainingPlayers=$remainingPlayers + usage=$usage + networkUsage=$networkUsage + cores=$cores")
                 builder.add(timestampStart, timestampEnd, usage, cores, networkUsage)
@@ -290,11 +298,11 @@ class MyTest {
         }
     }
 
-    private fun getNetworkUsage(packetRateLevel: PacketRateLevel, numPlayers: Int, singlePlayerUsage: Double) : Double {
-        return when (packetRateLevel) {
-            PacketRateLevel.Low -> (singlePlayerUsage * numPlayers)/3
-            PacketRateLevel.Med -> (singlePlayerUsage * numPlayers)/2
-            PacketRateLevel.High -> singlePlayerUsage * numPlayers
+    private fun getNetworkUsage(dataRateLevel: DataRateLevel, numPlayers: Int, singlePlayerUsage: Double) : Double {
+        return when (dataRateLevel) {
+            DataRateLevel.Linear -> singlePlayerUsage * numPlayers
+            DataRateLevel.Square -> singlePlayerUsage * (Math.pow(numPlayers.toDouble(), 2.0))
+            DataRateLevel.Cubic -> singlePlayerUsage * (Math.pow(numPlayers.toDouble(), 3.0))
         }
     }
 
@@ -302,7 +310,7 @@ class MyTest {
         val vms = mutableListOf<ExtendedVirtualMachine>()
         var counter = 0
         val maxCpuCapacityNeeded = getUsage(gameType, maxNumPlayers, singlePlayerUsage)
-        val maxNetworkCapacityNeeded = getNetworkUsage(PacketRateLevel.High, maxNumPlayers, singlePlayerNetworkUsage)
+        val maxNetworkCapacityNeeded = getNetworkUsage(DataRateLevel.Cubic, maxNumPlayers, singlePlayerNetworkUsage)
         println("maxCpuCapacityNeeded $maxCpuCapacityNeeded maxNetworkCapacityNeeded $maxNetworkCapacityNeeded \n")
 
             for(i in 1..numOfVmsNeeded) {
@@ -327,6 +335,7 @@ class MyTest {
                     maxCores,
                     maxCpuCapacityNeeded,
                     vmMemoryCapacity,
+                    maxNics,
                     maxNetworkCapacityNeeded,
                     totalLoad,
                     Instant.ofEpochMilli(globalStartTime),
@@ -338,89 +347,6 @@ class MyTest {
         }
 
     return vms
-    }
-
-    private fun parseMeta(path: File, fragments: Map<Int, FragmentBuilder>): List<ExtendedVirtualMachine> {
-        val vms = mutableListOf<ExtendedVirtualMachine>()
-        var counter = 0
-
-        val parser = factory.createParser(path)
-        parser.schema = metaSchema
-
-        var id = 0
-        var startTime = 0L
-        var stopTime = 0L
-        var cpuCount = 0
-        var cpuCapacity = 0.0
-        var networkCapacity = 0.0
-        var memCapacity = 0.0
-
-        while (!parser.isClosed) {
-            val token = parser.nextValue()
-            if (token == JsonToken.END_OBJECT) {
-                if (!fragments.containsKey(id)) {
-                    continue
-                }
-                val builder = fragments.getValue(id)
-                val totalLoad = builder.totalLoad
-                val uid = UUID.nameUUIDFromBytes("$id-${counter++}".toByteArray())
-//                println("adding VM:\n" +
-//                    "UID $uid\n" +
-//                    "ID $id\n" +
-//                    "cpuCount $cpuCount\n" +
-//                    "cpuCapacity $cpuCapacity\n" +
-//                    "memCapacity $memCapacity\n" +
-//                    "networkCapacity $networkCapacity\n" +
-//                    "totalLoad $totalLoad\n" +
-//                    "startTime $startTime\n" +
-//                    "stopTime $stopTime\n")
-
-                vms.add(
-                    ExtendedVirtualMachine(
-                        uid,
-                        id.toString(),
-                        cpuCount,
-                        cpuCapacity,
-                        memCapacity.roundToLong(),
-                        networkCapacity,
-                        totalLoad,
-                        Instant.ofEpochMilli(startTime),
-                        Instant.ofEpochMilli(stopTime),
-                        builder.build(),
-                        null
-                    )
-                )
-
-//                println("META\n" +
-//                    "id $id\n" +
-//                    "startTime $startTime\n" +
-//                    "stopTime $stopTime\n" +
-//                    "cpuCount $cpuCount\n" +
-//                    "cpuCapacity $cpuCapacity\n"+
-//                    "memCapacity $memCapacity\n")
-                id = 0
-                startTime = 0L
-                stopTime = 0
-                cpuCount = 0
-                cpuCapacity = 0.0
-                networkCapacity = 0.0
-                memCapacity = 0.0
-
-                continue
-            }
-
-            when (parser.currentName) {
-                "id" -> id = parser.valueAsInt
-                "startTime" -> startTime = parser.valueAsLong
-                "stopTime" -> stopTime = parser.valueAsLong
-                "cpuCount" -> cpuCount = parser.valueAsInt
-                "cpuCapacity" -> cpuCapacity = parser.valueAsDouble
-                "networkCapacity" -> networkCapacity = parser.valueAsDouble
-                "memCapacity" -> memCapacity = parser.valueAsDouble
-            }
-        }
-
-        return vms
     }
 
     private class FragmentBuilder {
@@ -491,30 +417,30 @@ class MyTest {
         .setUseHeader(true)
         .build()
 
-    private val fragmentsSchema = CsvSchema.builder()
-        .addColumn("id", CsvSchema.ColumnType.NUMBER)
-        .addColumn("timestamp", CsvSchema.ColumnType.NUMBER)
-        .addColumn("duration", CsvSchema.ColumnType.NUMBER)
-        .addColumn("cores", CsvSchema.ColumnType.NUMBER)
-        .addColumn("usage", CsvSchema.ColumnType.NUMBER)
-        .setAllowComments(true)
-        .setUseHeader(true)
-        .build()
-
-    /**
-     * The [CsvSchema] that is used to parse the meta file.
-     */
-    private val metaSchema = CsvSchema.builder()
-            .addColumn("id", CsvSchema.ColumnType.NUMBER)
-            .addColumn("startTime", CsvSchema.ColumnType.NUMBER)
-            .addColumn("stopTime", CsvSchema.ColumnType.NUMBER)
-            .addColumn("cpuCount", CsvSchema.ColumnType.NUMBER)
-            .addColumn("cpuCapacity", CsvSchema.ColumnType.NUMBER)
-            .addColumn("networkCapacity", CsvSchema.ColumnType.NUMBER)
-            .addColumn("memCapacity", CsvSchema.ColumnType.NUMBER)
-            .setAllowComments(true)
-            .setUseHeader(true)
-            .build()
+//    private val fragmentsSchema = CsvSchema.builder()
+//        .addColumn("id", CsvSchema.ColumnType.NUMBER)
+//        .addColumn("timestamp", CsvSchema.ColumnType.NUMBER)
+//        .addColumn("duration", CsvSchema.ColumnType.NUMBER)
+//        .addColumn("cores", CsvSchema.ColumnType.NUMBER)
+//        .addColumn("usage", CsvSchema.ColumnType.NUMBER)
+//        .setAllowComments(true)
+//        .setUseHeader(true)
+//        .build()
+//
+//    /**
+//     * The [CsvSchema] that is used to parse the meta file.
+//     */
+//    private val metaSchema = CsvSchema.builder()
+//            .addColumn("id", CsvSchema.ColumnType.NUMBER)
+//            .addColumn("startTime", CsvSchema.ColumnType.NUMBER)
+//            .addColumn("stopTime", CsvSchema.ColumnType.NUMBER)
+//            .addColumn("cpuCount", CsvSchema.ColumnType.NUMBER)
+//            .addColumn("cpuCapacity", CsvSchema.ColumnType.NUMBER)
+//            .addColumn("networkCapacity", CsvSchema.ColumnType.NUMBER)
+//            .addColumn("memCapacity", CsvSchema.ColumnType.NUMBER)
+//            .setAllowComments(true)
+//            .setUseHeader(true)
+//            .build()
 
 //    private fun buildFragments(path : File): Map<Int, FragmentBuilder> {
 //        val fragments = mutableMapOf<Int, FragmentBuilder>()
@@ -572,6 +498,91 @@ class MyTest {
 //
 //        return fragments
 //    }
+
+
+//    private fun parseMeta(path: File, fragments: Map<Int, FragmentBuilder>): List<ExtendedVirtualMachine> {
+//        val vms = mutableListOf<ExtendedVirtualMachine>()
+//        var counter = 0
+//
+//        val parser = factory.createParser(path)
+//        parser.schema = metaSchema
+//
+//        var id = 0
+//        var startTime = 0L
+//        var stopTime = 0L
+//        var cpuCount = 0
+//        var cpuCapacity = 0.0
+//        var networkCapacity = 0.0
+//        var memCapacity = 0.0
+//
+//        while (!parser.isClosed) {
+//            val token = parser.nextValue()
+//            if (token == JsonToken.END_OBJECT) {
+//                if (!fragments.containsKey(id)) {
+//                    continue
+//                }
+//                val builder = fragments.getValue(id)
+//                val totalLoad = builder.totalLoad
+//                val uid = UUID.nameUUIDFromBytes("$id-${counter++}".toByteArray())
+////                println("adding VM:\n" +
+////                    "UID $uid\n" +
+////                    "ID $id\n" +
+////                    "cpuCount $cpuCount\n" +
+////                    "cpuCapacity $cpuCapacity\n" +
+////                    "memCapacity $memCapacity\n" +
+////                    "networkCapacity $networkCapacity\n" +
+////                    "totalLoad $totalLoad\n" +
+////                    "startTime $startTime\n" +
+////                    "stopTime $stopTime\n")
+//
+//                vms.add(
+//                    ExtendedVirtualMachine(
+//                        uid,
+//                        id.toString(),
+//                        cpuCount,
+//                        cpuCapacity,
+//                        memCapacity.roundToLong(),
+//                        networkCapacity,
+//                        totalLoad,
+//                        Instant.ofEpochMilli(startTime),
+//                        Instant.ofEpochMilli(stopTime),
+//                        builder.build(),
+//                        null
+//                    )
+//                )
+//
+////                println("META\n" +
+////                    "id $id\n" +
+////                    "startTime $startTime\n" +
+////                    "stopTime $stopTime\n" +
+////                    "cpuCount $cpuCount\n" +
+////                    "cpuCapacity $cpuCapacity\n"+
+////                    "memCapacity $memCapacity\n")
+//                id = 0
+//                startTime = 0L
+//                stopTime = 0
+//                cpuCount = 0
+//                cpuCapacity = 0.0
+//                networkCapacity = 0.0
+//                memCapacity = 0.0
+//
+//                continue
+//            }
+//
+//            when (parser.currentName) {
+//                "id" -> id = parser.valueAsInt
+//                "startTime" -> startTime = parser.valueAsLong
+//                "stopTime" -> stopTime = parser.valueAsLong
+//                "cpuCount" -> cpuCount = parser.valueAsInt
+//                "cpuCapacity" -> cpuCapacity = parser.valueAsDouble
+//                "networkCapacity" -> networkCapacity = parser.valueAsDouble
+//                "memCapacity" -> memCapacity = parser.valueAsDouble
+//            }
+//        }
+//
+//        return vms
+//    }
+
 
 //    private fun parseFragments(path: File): Map<Int, FragmentBuilder> {
 //        val fragments = mutableMapOf<Int, FragmentBuilder>()

@@ -122,4 +122,9 @@ public interface HostTableReader {
      * The [Instant] at which the host booted.
      */
     public val bootTime: Instant?
+
+    public val nicUsage: Double
+    public val nicDemand: Double
+    public val nicLimit: Double
+    public val nicUtilization: Double
 }

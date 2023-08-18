@@ -59,6 +59,7 @@ public data class ExtendedVirtualMachine(
     val cpuCount: Int,
     val cpuCapacity: Double,
     val memCapacity: Long,
+    val nicCount: Int,
     val bandwidthCapacity: Double,
     val totalLoad: Double,
     val startTime: Instant,

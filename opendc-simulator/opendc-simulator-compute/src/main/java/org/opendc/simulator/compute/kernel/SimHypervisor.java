@@ -187,6 +187,16 @@ public final class SimHypervisor implements SimWorkload {
         return context.previousCpuCapacity;
     }
 
+    public double getNetworkCapacity() {
+        final Context context = activeContext;
+
+        if (context == null) {
+            return 0.0;
+        }
+
+        return context.previousNetworkCapacity;
+    }
+
     /**
      * The CPU demand of the hypervisor in MHz.
      */
@@ -289,6 +299,7 @@ public final class SimHypervisor implements SimWorkload {
         private float previousCpuCapacity;
         private float previousNetworkRate;
         private float previousNetworkDemand;
+        private float previousNetworkCapacity;
 
         private Context(
                 SimMachineContext ctx,
@@ -407,12 +418,14 @@ public final class SimHypervisor implements SimWorkload {
             float cpuCapacity = cpuMultiplexer.getCapacity();
             float networkRate = networkMultiplexer.getRate();
             float networkDemand = networkMultiplexer.getDemand();
+            float networkCapacity = networkMultiplexer.getCapacity();
 
             this.previousCpuDemand = cpuDemand;
             this.previousCpuRate = cpuRate;
             this.previousCpuCapacity = cpuCapacity;
             this.previousNetworkRate = networkRate;
             this.previousNetworkDemand = networkDemand;
+            this.previousNetworkCapacity = networkCapacity;
 
             double load = cpuRate / Math.min(1.0, cpuCapacity);
 
@@ -490,6 +503,17 @@ public final class SimHypervisor implements SimWorkload {
         }
 
         @Override
+        public double getNetworkDemand() {
+            final VmContext context = (VmContext) getActiveContext();
+
+            if (context == null) {
+                return 0.0;
+            }
+
+            return context.previousNetworkDemand;
+        }
+
+        @Override
         public double getCpuUsage() {
             final VmContext context = (VmContext) getActiveContext();
 
@@ -501,6 +525,17 @@ public final class SimHypervisor implements SimWorkload {
         }
 
         @Override
+        public double getNetworkUsage() {
+            final VmContext context = (VmContext) getActiveContext();
+
+            if (context == null) {
+                return 0.0;
+            }
+
+            return context.networkUsage;
+        }
+
+        @Override
         public double getCpuCapacity() {
             final VmContext context = (VmContext) getActiveContext();
 
@@ -509,6 +544,17 @@ public final class SimHypervisor implements SimWorkload {
             }
 
             return context.previousCpuCapacity;
+        }
+
+        @Override
+        public double getNetworkCapacity() {
+            final VmContext context = (VmContext) getActiveContext();
+
+            if (context == null) {
+                return 0.0;
+            }
+
+            return context.previousNetworkCapacity;
         }
 
         @Override
@@ -586,10 +632,12 @@ public final class SimHypervisor implements SimWorkload {
 
         private float networkDemand;
         private float networkUsage;
-        private float previousNetworkDemand;
+        private float networkCapacity;
 
         private float previousCpuDemand;
+        private float previousNetworkDemand;
         private float previousCpuCapacity;
+        private float previousNetworkCapacity;
 
         private VmContext(
                 Context context,
@@ -770,6 +818,7 @@ public final class SimHypervisor implements SimWorkload {
             this.previousCpuDemand = cpuDemand;
             this.previousNetworkDemand = networkDemand;
             this.previousCpuCapacity = cpuCapacity;
+            this.previousNetworkCapacity = networkCapacity;
 
             long lastUpdate = this.lastUpdate;
             this.lastUpdate = now;
@@ -921,8 +970,11 @@ public final class SimHypervisor implements SimWorkload {
         @Override
         public void onUpstreamFinish(InPort port, Throwable cause) {
 //            System.out.println("SimHypervisor Handler onUpstreamFinish InPort:" + port.getName() + " outport:" + output.getName());
-            context.cpuDemand -= port.getDemand();
-
+            if (port.getName().contains("eth") || port.getName().contains("nic")) {
+                context.networkDemand -= port.getDemand();
+            } else {
+                context.cpuDemand -= port.getDemand();
+            }
             output.push(0.f);
         }
 
@@ -934,16 +986,22 @@ public final class SimHypervisor implements SimWorkload {
         @Override
         public void onPull(OutPort port, float capacity) {
 //            System.out.println("SimHypervisor Handler onPull OutPort:" + port.getName() + " outport:" + input.getName());
-            context.cpuCapacity += -port.getCapacity() + capacity;
-
+            if (port.getName().contains("eth") || port.getName().contains("nic")) {
+                context.networkCapacity += -port.getCapacity() + capacity;
+            } else {
+                context.cpuCapacity += -port.getCapacity() + capacity;
+            }
             input.pull(capacity);
         }
 
         @Override
         public void onDownstreamFinish(OutPort port, Throwable cause) {
 //            System.out.println("SimHypervisor Handler onDownstreamFinish OutPort:" + port.getName() + " outport:" + input.getName());
-            context.cpuCapacity -= port.getCapacity();
-
+            if (port.getName().contains("eth") || port.getName().contains("nic")) {
+                context.networkCapacity -= port.getCapacity();
+            } else {
+                context.cpuCapacity -= port.getCapacity();
+            }
             input.pull(0.f);
         }
     }

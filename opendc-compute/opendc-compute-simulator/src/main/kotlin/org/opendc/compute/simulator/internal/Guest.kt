@@ -26,6 +26,7 @@ import mu.KotlinLogging
 import org.opendc.compute.api.Server
 import org.opendc.compute.api.ServerState
 import org.opendc.compute.service.driver.telemetry.GuestCpuStats
+import org.opendc.compute.service.driver.telemetry.GuestNicStats
 import org.opendc.compute.service.driver.telemetry.GuestSystemStats
 import org.opendc.compute.simulator.SimHost
 import org.opendc.compute.simulator.SimWorkloadMapper
@@ -155,6 +156,18 @@ internal class Guest(
         )
     }
 
+    fun getNicStats(): GuestNicStats {
+        val counters = machine.counters
+        counters.sync()
+
+        return GuestNicStats(
+            machine.networkCapacity,
+            machine.networkDemand,
+            machine.networkUsage,
+            machine.networkUsage / _nicLimit
+        )
+    }
+
     /**
      * The [SimMachineContext] representing the current active virtual machine instance or `null` if no virtual machine
      * is active.
@@ -219,6 +232,7 @@ internal class Guest(
     private var _lastReport = clock.millis()
     private var _bootTime: Instant? = null
     private val _cpuLimit = machine.model.cpus.sumOf { it.frequency }
+    private val _nicLimit = machine.model.network.sumOf { it.bandwidth }
 
     /**
      * Helper function to track the uptime and downtime of the guest.

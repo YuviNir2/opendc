@@ -53,6 +53,7 @@ public interface ComputeClient : AutoCloseable {
         name: String,
         cpuCount: Int,
         memorySize: Long,
+        nicCount: Int = 0,
         labels: Map<String, String> = emptyMap(),
         meta: Map<String, Any> = emptyMap()
     ): Flavor
