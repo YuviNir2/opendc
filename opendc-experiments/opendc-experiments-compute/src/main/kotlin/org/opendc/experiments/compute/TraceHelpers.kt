@@ -119,7 +119,6 @@ public suspend fun ComputeService.replay(
     }
 }
 
-// TODO: move ExtendedVirtualMachine into my folder or a find a solution to solve the dependencies
 public suspend fun ComputeService.replayExtended(
     clock: InstantSource,
     trace: List<ExtendedVirtualMachine>,
