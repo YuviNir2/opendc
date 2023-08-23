@@ -392,7 +392,6 @@ public final class ComputeService implements AutoCloseable {
             serversPending--;
 
             LOGGER.info("Assigned server {} to host {}", server, host);
-//            System.out.println("Assigned server " + server.getName() + " to host " +  host.getName());
             try {
                 server.host = host;
 

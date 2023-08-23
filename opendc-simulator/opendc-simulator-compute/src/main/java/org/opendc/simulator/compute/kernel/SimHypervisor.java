@@ -391,7 +391,6 @@ public final class SimHypervisor implements SimWorkload {
                 float capacity = previousCpuCapacity;
 
                 final double factor = this.d * delta;
-//                if (demand != 0 || rate != 0) System.out.println("SimHypervisor updateCounters now=" +now + " demand="+demand +" rate="+rate+ " capacity="+capacity +" factor="+factor);
                 counters.cpuActiveTime += Math.round(rate * factor);
                 counters.cpuIdleTime += Math.round((capacity - rate) * factor);
                 counters.cpuStealTime += Math.round((demand - rate) * factor);
@@ -957,10 +956,8 @@ public final class SimHypervisor implements SimWorkload {
         @Override
         public void onPush(InPort port, float demand) {
             if (port.getName().contains("eth") || port.getName().contains("nic")) {
-//                System.out.println("SimHypervisor Handler onPush NIC InPort:" + port.getName() + " port.handler():" + port.getHandler() + " outport:" + output.getName() + " demand:" + demand);
                 context.networkDemand += -port.getDemand() + demand;
             } else {
-//                System.out.println("SimHypervisor Handler onPush CPU InPort:" + port.getName() + " port.handler():" + port.getHandler() + " outport:" + output.getName() + " demand:" + demand);
                 context.cpuDemand += -port.getDemand() + demand;
             }
 
@@ -969,7 +966,6 @@ public final class SimHypervisor implements SimWorkload {
 
         @Override
         public void onUpstreamFinish(InPort port, Throwable cause) {
-//            System.out.println("SimHypervisor Handler onUpstreamFinish InPort:" + port.getName() + " outport:" + output.getName());
             if (port.getName().contains("eth") || port.getName().contains("nic")) {
                 context.networkDemand -= port.getDemand();
             } else {
@@ -985,7 +981,6 @@ public final class SimHypervisor implements SimWorkload {
 
         @Override
         public void onPull(OutPort port, float capacity) {
-//            System.out.println("SimHypervisor Handler onPull OutPort:" + port.getName() + " outport:" + input.getName());
             if (port.getName().contains("eth") || port.getName().contains("nic")) {
                 context.networkCapacity += -port.getCapacity() + capacity;
             } else {
@@ -996,7 +991,6 @@ public final class SimHypervisor implements SimWorkload {
 
         @Override
         public void onDownstreamFinish(OutPort port, Throwable cause) {
-//            System.out.println("SimHypervisor Handler onDownstreamFinish OutPort:" + port.getName() + " outport:" + input.getName());
             if (port.getName().contains("eth") || port.getName().contains("nic")) {
                 context.networkCapacity -= port.getCapacity();
             } else {

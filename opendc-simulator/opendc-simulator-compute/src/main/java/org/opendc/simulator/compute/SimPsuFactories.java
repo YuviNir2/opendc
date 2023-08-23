@@ -148,7 +148,6 @@ public class SimPsuFactories {
             @Override
             public void onPush(InPort port, float demand) {
                 totalUsage += -port.getDemand() + demand;
-//                System.out.println("SimPsuFactories cpuhandler Now=" + clock.millis() + " totalUsage="+ totalUsage + " demand=" + demand + " -port.getDemand()=" + -port.getDemand() + " port.name=" + port.getName()+ " port.capacity=" + port.getCapacity());
             }
 
             @Override
@@ -157,12 +156,10 @@ public class SimPsuFactories {
             }
         };
 
-        // TODO: totalBandwidth sometimes drops below minimum (0) because it is double and port.GetDemand & demand are float so I believe there's cutoff somewhere or something else is fucking it up
         private final InHandler ethHandler = new InHandler() {
             @Override
             public void onPush(InPort port, float demand) {
                 totalBandwidth += -port.getDemand() + demand;
-//                System.out.println("SimPsuFactories ethhandler Now=" + clock.millis() + " totalBandwidth="+ totalBandwidth + " demand=" + demand + " -port.getDemand()=" + -port.getDemand()+ " port.name=" + port.getName() + " port.capacity=" + port.getCapacity());
             }
 
             @Override
@@ -221,7 +218,6 @@ public class SimPsuFactories {
         @Override
         InPort getNicPower(int id, org.opendc.simulator.compute.model.NetworkAdapter model) {
             maxBandwidth += model.getBandwidth();
-//            System.out.println("getNicPower maxBandwidth=" + maxBandwidth + " model.getBandwidth()=" + model.getBandwidth());
 
             final InPort port = stage.getInlet("eth" + id);
             port.setHandler(ethHandler);
@@ -241,8 +237,6 @@ public class SimPsuFactories {
 
             double usage = model.computePower(totalUsage / targetFreq);
             double networkUsage = networkModel.computePower(totalBandwidth / maxBandwidth);
-//            System.out.print("SimPsuFactories usage=" + usage + " totalUsage=" + totalUsage + " targetFreq=" + targetFreq);
-//            System.out.println(" networkUsage=" + networkUsage + " totalBandwidth=" + totalBandwidth + " maxBandwidth=" + maxBandwidth);
             out.push((float) (usage + networkUsage));
             powerUsage = usage + networkUsage;
 
