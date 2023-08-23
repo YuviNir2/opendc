@@ -30,8 +30,10 @@ import org.opendc.compute.service.driver.HostListener
 import org.opendc.compute.service.driver.HostModel
 import org.opendc.compute.service.driver.HostState
 import org.opendc.compute.service.driver.telemetry.GuestCpuStats
+import org.opendc.compute.service.driver.telemetry.GuestNicStats
 import org.opendc.compute.service.driver.telemetry.GuestSystemStats
 import org.opendc.compute.service.driver.telemetry.HostCpuStats
+import org.opendc.compute.service.driver.telemetry.HostNicStats
 import org.opendc.compute.service.driver.telemetry.HostSystemStats
 import org.opendc.compute.simulator.internal.DefaultWorkloadMapper
 import org.opendc.compute.simulator.internal.Guest
@@ -41,6 +43,7 @@ import org.opendc.simulator.compute.SimMachineContext
 import org.opendc.simulator.compute.kernel.SimHypervisor
 import org.opendc.simulator.compute.model.MachineModel
 import org.opendc.simulator.compute.model.MemoryUnit
+import org.opendc.simulator.compute.model.NetworkAdapter
 import org.opendc.simulator.compute.model.ProcessingNode
 import org.opendc.simulator.compute.model.ProcessingUnit
 import org.opendc.simulator.compute.workload.SimWorkload
@@ -259,9 +262,26 @@ public class SimHost(
         )
     }
 
+    override fun getNicStats(): HostNicStats {
+        val counters = hypervisor.counters
+        counters.sync()
+
+        return HostNicStats(
+            hypervisor.networkCapacity,
+            hypervisor.networkDemand,
+            hypervisor.networkUsage,
+            hypervisor.networkUsage / _nicLimit
+        )
+    }
+
     override fun getCpuStats(server: Server): GuestCpuStats {
         val guest = requireNotNull(guests[server]) { "Unknown server ${server.uid} at host $uid" }
         return guest.getCpuStats()
+    }
+
+    override fun getNicStats(server: Server): GuestNicStats {
+        val guest = requireNotNull(guests[server]) { "Unknown server ${server.uid} at host $uid" }
+        return guest.getNicStats()
     }
 
     override fun hashCode(): Int = uid.hashCode()
@@ -348,7 +368,17 @@ public class SimHost(
         val processingUnits = (0 until cpuCount).map { ProcessingUnit(processingNode, it, cpuCapacity) }
         val memoryUnits = listOf(MemoryUnit("Generic", "Generic", 3200.0, memorySize))
 
-        val model = MachineModel(processingUnits, memoryUnits)
+        var networkUnits: List<NetworkAdapter>
+        if (machine.model.network.isNotEmpty()) {
+            val originalNic = machine.model.network[0]
+            val bandwidthCapacity =
+                (this.meta["bandwidth-capacity"] as? Double ?: Double.MAX_VALUE).coerceAtMost(originalNic.bandwidth)
+            networkUnits = (0 until nicCount).map { NetworkAdapter(originalNic.vendor, originalNic.modelName, bandwidthCapacity) }
+        }
+        else {
+            networkUnits = listOf()
+        }
+        val model = MachineModel(processingUnits, memoryUnits, networkUnits)
         return if (optimize) model.optimize() else model
     }
 
@@ -357,6 +387,7 @@ public class SimHost(
     private var _downtime = 0L
     private var _bootTime: Instant? = null
     private val _cpuLimit = machine.model.cpus.sumOf { it.frequency }
+    private val _nicLimit = machine.model.network.sumOf { it.bandwidth }
 
     /**
      * Helper function to track the uptime of a machine.

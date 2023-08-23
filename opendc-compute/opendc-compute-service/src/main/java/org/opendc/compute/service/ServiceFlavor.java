@@ -38,6 +38,7 @@ public final class ServiceFlavor implements Flavor {
     private final String name;
     private final int cpuCount;
     private final long memorySize;
+    private final int nicCount;
     private final Map<String, String> labels;
     private final Map<String, ?> meta;
 
@@ -47,6 +48,7 @@ public final class ServiceFlavor implements Flavor {
             String name,
             int cpuCount,
             long memorySize,
+            int nicCount,
             Map<String, String> labels,
             Map<String, ?> meta) {
         this.service = service;
@@ -54,6 +56,7 @@ public final class ServiceFlavor implements Flavor {
         this.name = name;
         this.cpuCount = cpuCount;
         this.memorySize = memorySize;
+        this.nicCount = nicCount;
         this.labels = labels;
         this.meta = meta;
     }
@@ -61,6 +64,11 @@ public final class ServiceFlavor implements Flavor {
     @Override
     public int getCpuCount() {
         return cpuCount;
+    }
+
+    @Override
+    public int getNicCount() {
+        return nicCount;
     }
 
     @Override

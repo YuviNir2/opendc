@@ -38,7 +38,7 @@ public final class InPort implements Inlet {
 
     private boolean mask;
 
-    OutPort output;
+    public OutPort output;
     private InHandler handler = InHandlers.noop();
     private final InstantSource clock;
     private final String name;

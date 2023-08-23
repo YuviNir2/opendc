@@ -392,7 +392,6 @@ public final class ComputeService implements AutoCloseable {
             serversPending--;
 
             LOGGER.info("Assigned server {} to host {}", server, host);
-
             try {
                 server.host = host;
 
@@ -483,13 +482,14 @@ public final class ComputeService implements AutoCloseable {
                 @NotNull String name,
                 int cpuCount,
                 long memorySize,
+                int nicCount,
                 @NotNull Map<String, String> labels,
                 @NotNull Map<String, ?> meta) {
             checkOpen();
 
             final ComputeService service = this.service;
             UUID uid = new UUID(service.clock.millis(), service.random.nextLong());
-            ServiceFlavor flavor = new ServiceFlavor(service, uid, name, cpuCount, memorySize, labels, meta);
+            ServiceFlavor flavor = new ServiceFlavor(service, uid, name, cpuCount, memorySize, nicCount, labels, meta);
 
             service.flavorById.put(uid, flavor);
             service.flavors.add(flavor);

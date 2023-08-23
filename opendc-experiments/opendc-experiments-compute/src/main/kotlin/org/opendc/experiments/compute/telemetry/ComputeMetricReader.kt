@@ -268,12 +268,30 @@ public class ComputeMetricReader(
             get() = _bootTime
         private var _bootTime: Instant? = null
 
+        override val nicUsage: Double
+            get() = _nicUsage
+        private var _nicUsage: Double = 0.0
+
+        override val nicDemand: Double
+            get() = _nicDemand
+        private var _nicDemand: Double = 0.0
+
+        override val nicLimit: Double
+            get() = _nicLimit
+        private var _nicLimit: Double = 0.0
+
+        override val nicUtilization: Double
+            get() = _nicUtilization
+        private var _nicUtilization: Double = 0.0
+
+
         /**
          * Record the next cycle.
          */
         fun record(now: Instant) {
             val hostCpuStats = _host.getCpuStats()
             val hostSysStats = _host.getSystemStats()
+            val hostNicStats = _host.getNicStats()
 
             _timestamp = now
             _guestsTerminated = hostSysStats.guestsTerminated
@@ -293,6 +311,10 @@ public class ComputeMetricReader(
             _uptime = hostSysStats.uptime.toMillis()
             _downtime = hostSysStats.downtime.toMillis()
             _bootTime = hostSysStats.bootTime
+            _nicUsage = hostNicStats.usage
+            _nicDemand = hostNicStats.demand
+            _nicLimit = hostNicStats.capacity
+            _nicUtilization = hostNicStats.utilization
         }
 
         /**
@@ -394,6 +416,8 @@ public class ComputeMetricReader(
         private var _cpuLostTime = 0L
         private var previousCpuLostTime = 0L
 
+
+
         /**
          * Record the next cycle.
          */
@@ -417,6 +441,7 @@ public class ComputeMetricReader(
             _downtime = sysStats?.downtime?.toMillis() ?: 0
             _provisionTime = _server.launchedAt
             _bootTime = sysStats?.bootTime
+
         }
 
         /**

@@ -38,7 +38,7 @@ public final class OutPort implements Outlet {
 
     private boolean mask;
 
-    InPort input;
+    public InPort input;
     private OutHandler handler = OutHandlers.noop();
     private final String name;
     private final FlowStage stage;
@@ -81,6 +81,8 @@ public final class OutPort implements Outlet {
     public float getDemand() {
         return demand;
     }
+
+    public InPort getInput() { return input; }
 
     /**
      * Return the current rate of flow of the input port.
@@ -132,7 +134,6 @@ public final class OutPort implements Outlet {
     public void push(float rate) {
         demand = rate;
         InPort input = this.input;
-
         if (input != null) {
             input.push(rate);
         }

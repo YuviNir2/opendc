@@ -24,8 +24,13 @@ package org.opendc.simulator.compute.workload;
 
 import java.util.Arrays;
 import java.util.List;
+
+import org.opendc.simulator.compute.SimAbstractMachine;
 import org.opendc.simulator.compute.SimMachineContext;
+import org.opendc.simulator.compute.SimNetworkInterface;
 import org.opendc.simulator.compute.SimProcessingUnit;
+import org.opendc.simulator.compute.kernel.SimHypervisor;
+import org.opendc.simulator.compute.model.NetworkAdapter;
 import org.opendc.simulator.flow2.FlowGraph;
 import org.opendc.simulator.flow2.FlowStage;
 import org.opendc.simulator.flow2.FlowStageLogic;
@@ -36,6 +41,7 @@ import org.opendc.simulator.flow2.OutPort;
  */
 public final class SimTrace {
     private final double[] usageCol;
+    private final double[] networkUsageCol;
     private final long[] deadlineCol;
     private final int[] coresCol;
     private final int size;
@@ -59,6 +65,30 @@ public final class SimTrace {
             throw new IllegalArgumentException("Invalid number of core entries");
         }
 
+        this.networkUsageCol = new double[size];
+        for (int i=0; i < size; i++) {
+            this.networkUsageCol[i]= 0.0;
+        }
+        this.usageCol = usageCol;
+        this.deadlineCol = deadlineCol;
+        this.coresCol = coresCol;
+        this.size = size;
+    }
+
+    private SimTrace(double[] usageCol, double[] networkUsageCol, long[] deadlineCol, int[] coresCol, int size) {
+        if (size < 0) {
+            throw new IllegalArgumentException("Invalid trace size");
+        } else if (usageCol.length < size) {
+            throw new IllegalArgumentException("Invalid number of usage entries");
+        } else if (networkUsageCol.length < size) {
+            throw new IllegalArgumentException("Invalid number of network usage entries");
+        } else if (deadlineCol.length < size) {
+            throw new IllegalArgumentException("Invalid number of deadline entries");
+        } else if (coresCol.length < size) {
+            throw new IllegalArgumentException("Invalid number of core entries");
+        }
+
+        this.networkUsageCol = networkUsageCol;
         this.usageCol = usageCol;
         this.deadlineCol = deadlineCol;
         this.coresCol = coresCol;
@@ -71,7 +101,7 @@ public final class SimTrace {
      * @param offset The offset for the timestamps.
      */
     public SimWorkload createWorkload(long offset) {
-        return new Workload(offset, usageCol, deadlineCol, coresCol, size, 0);
+        return new Workload(offset, usageCol, networkUsageCol, deadlineCol, coresCol, size, 0);
     }
 
     /**
@@ -123,6 +153,7 @@ public final class SimTrace {
      */
     public static final class Builder {
         private double[] usageCol;
+        private double[] networkUsageCol;
         private long[] deadlineCol;
         private int[] coresCol;
 
@@ -136,6 +167,7 @@ public final class SimTrace {
             this.usageCol = new double[initialCapacity];
             this.deadlineCol = new long[initialCapacity];
             this.coresCol = new int[initialCapacity];
+            this.networkUsageCol = new double[initialCapacity];
         }
 
         /**
@@ -165,12 +197,33 @@ public final class SimTrace {
             this.size++;
         }
 
+        public void add(long deadline, double usage, int cores, double networkUsage) {
+            if (isBuilt) {
+                recreate();
+            }
+
+            int size = this.size;
+            double[] usageCol = this.usageCol;
+
+            if (size == usageCol.length) {
+                grow();
+                usageCol = this.usageCol;
+            }
+
+            deadlineCol[size] = deadline;
+            usageCol[size] = usage;
+            coresCol[size] = cores;
+            networkUsageCol[size] = networkUsage;
+
+            this.size++;
+        }
+
         /**
          * Build the {@link SimTrace} instance.
          */
         public SimTrace build() {
             isBuilt = true;
-            return new SimTrace(usageCol, deadlineCol, coresCol, size);
+            return new SimTrace(usageCol, networkUsageCol, deadlineCol, coresCol, size);
         }
 
         /**
@@ -183,6 +236,7 @@ public final class SimTrace {
             usageCol = Arrays.copyOf(usageCol, newSize);
             deadlineCol = Arrays.copyOf(deadlineCol, newSize);
             coresCol = Arrays.copyOf(coresCol, newSize);
+            networkUsageCol = Arrays.copyOf(networkUsageCol, newSize);
         }
 
         /**
@@ -197,6 +251,7 @@ public final class SimTrace {
             usageCol = usageCol.clone();
             deadlineCol = deadlineCol.clone();
             coresCol = coresCol.clone();
+            networkUsageCol = networkUsageCol.clone();
         }
     }
 
@@ -208,6 +263,7 @@ public final class SimTrace {
 
         private final long offset;
         private final double[] usageCol;
+        private final  double[] networkUsageCol;
         private final long[] deadlineCol;
         private final int[] coresCol;
         private final int size;
@@ -220,15 +276,29 @@ public final class SimTrace {
             this.coresCol = coresCol;
             this.size = size;
             this.index = index;
+            this.networkUsageCol = new double[size];
+            for (int i=0; i < size; i++) {
+                this.networkUsageCol[i]= 0.0;
+            }
+        }
+
+        private Workload(long offset, double[] usageCol, double[] networkUsageCol, long[] deadlineCol, int[] coresCol, int size, int index) {
+            this.offset = offset;
+            this.usageCol = usageCol;
+            this.networkUsageCol = networkUsageCol;
+            this.deadlineCol = deadlineCol;
+            this.coresCol = coresCol;
+            this.size = size;
+            this.index = index;
         }
 
         @Override
         public void onStart(SimMachineContext ctx) {
             final WorkloadStageLogic logic;
-            if (ctx.getCpus().size() == 1) {
-                logic = new SingleWorkloadLogic(ctx, offset, usageCol, deadlineCol, size, index);
+            if (ctx.getCpus().size() == 1 && ctx.getNetworkInterfaces().isEmpty()) {
+                logic = new SingleWorkloadLogic(ctx, offset, usageCol, networkUsageCol, deadlineCol, size, index);
             } else {
-                logic = new MultiWorkloadLogic(ctx, offset, usageCol, deadlineCol, coresCol, size, index);
+                logic = new MultiWorkloadLogic(ctx, offset, usageCol, networkUsageCol, deadlineCol, coresCol, size, index);
             }
             this.logic = logic;
         }
@@ -281,16 +351,19 @@ public final class SimTrace {
 
         private final long offset;
         private final double[] usageCol;
+        private final double[] networkUsageCol;
         private final long[] deadlineCol;
         private final int size;
 
         private final SimMachineContext ctx;
 
+        // TODO: SingleWorkloadLogic does not currently use networkUsageCol, see if I want to add it.
         private SingleWorkloadLogic(
-                SimMachineContext ctx, long offset, double[] usageCol, long[] deadlineCol, int size, int index) {
+                SimMachineContext ctx, long offset, double[] usageCol, double[] networkUsageCol, long[] deadlineCol, int size, int index) {
             this.ctx = ctx;
             this.offset = offset;
             this.usageCol = usageCol;
+            this.networkUsageCol = networkUsageCol;
             this.deadlineCol = deadlineCol;
             this.size = size;
             this.index = index;
@@ -361,9 +434,12 @@ public final class SimTrace {
         private final OutPort[] outputs;
         private int index;
         private final int coreCount;
+        private final int nicCount;
 
         private final long offset;
         private final double[] usageCol;
+        private final double[] networkUsageCol;
+
         private final long[] deadlineCol;
         private final int[] coresCol;
         private final int size;
@@ -374,6 +450,7 @@ public final class SimTrace {
                 SimMachineContext ctx,
                 long offset,
                 double[] usageCol,
+                double[] networkUsageCol,
                 long[] deadlineCol,
                 int[] coresCol,
                 int size,
@@ -381,6 +458,7 @@ public final class SimTrace {
             this.ctx = ctx;
             this.offset = offset;
             this.usageCol = usageCol;
+            this.networkUsageCol = networkUsageCol;
             this.deadlineCol = deadlineCol;
             this.coresCol = coresCol;
             this.size = size;
@@ -388,19 +466,29 @@ public final class SimTrace {
 
             final FlowGraph graph = ctx.getGraph();
             final List<? extends SimProcessingUnit> cpus = ctx.getCpus();
+            final List<? extends SimNetworkInterface> nics = ctx.getNetworkInterfaces();
 
             stage = graph.newStage(this);
             coreCount = cpus.size();
+            nicCount = nics.size();
 
-            final OutPort[] outputs = new OutPort[cpus.size()];
+            final OutPort[] outputs = new OutPort[cpus.size() + nics.size()];
             this.outputs = outputs;
 
             for (int i = 0; i < cpus.size(); i++) {
                 final SimProcessingUnit cpu = cpus.get(i);
-                final OutPort output = stage.getOutlet("cpu" + i);
+                final OutPort output = stage.getOutlet("cpuST" + i);
 
                 graph.connect(output, cpu.getInput());
                 outputs[i] = output;
+            }
+
+            for (int i = 0; i < nics.size(); i++) {
+                final SimNetworkInterface nic = nics.get(i);
+                final OutPort output = stage.getOutlet("ethST" + i);
+                SimHypervisor.VNic n = (SimHypervisor.VNic)nic;
+                graph.connect(output, n.getInput());
+                outputs[i+coreCount] = output;
             }
         }
 
@@ -439,7 +527,16 @@ public final class SimTrace {
                 outputs[i].push(usage);
             }
 
-            for (int i = cores; i < outputs.length; i++) {
+            for (int i = cores; i < outputs.length-nicCount; i++) {
+                outputs[i].push(0.f);
+            }
+
+            float networkUsage = (float) networkUsageCol[index] / nicCount;
+            for (int i = cores; i < nicCount+cores; i++) {
+                outputs[i].push(networkUsage);
+            }
+
+            for (int i = cores+nicCount; i < outputs.length; i++) {
                 outputs[i].push(0.f);
             }
 

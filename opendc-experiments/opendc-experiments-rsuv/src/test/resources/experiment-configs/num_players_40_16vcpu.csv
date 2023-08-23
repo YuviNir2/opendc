@@ -1,0 +1,2 @@
+envFileName,traceFileName,singlePlayerCpuUsage,maxCoresPerVm,singlePlayerNetworkUsage,maxNicsPerVm,maxNumPlayersPerVm,vmMemoryCapacity,cpuMaxPower,cpuIdlePower,cpuPowerModel,nicMaxPower,nicIdlePower,nicPowerModel,gameType,dataRate
+dav4,play.inpvp.net_30000_pings,1000,16,5,2,40,96000,350,200,linear,86,24,linear,tbs,linear

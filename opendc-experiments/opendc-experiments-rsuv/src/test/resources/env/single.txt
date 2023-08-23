@@ -1,0 +1,2 @@
+ClusterID;ClusterName;Cores;Speed;Memory;NicCountPerHost;BandwidthPerNic;numberOfHosts
+A01;A01;32;3.2;2048;1;22000;1

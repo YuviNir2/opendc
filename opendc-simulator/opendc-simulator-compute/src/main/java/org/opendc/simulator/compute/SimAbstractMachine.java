@@ -266,8 +266,8 @@ public abstract class SimAbstractMachine implements SimMachine {
          */
         public NetworkAdapter(FlowGraph graph, org.opendc.simulator.compute.model.NetworkAdapter model, int index) {
             this.model = model;
-            this.tx = new FlowTransformer(graph, FlowTransforms.noop());
-            this.rx = new FlowTransformer(graph, FlowTransforms.noop());
+            this.tx = new FlowTransformer(graph, FlowTransforms.noop(), index);
+            this.rx = new FlowTransformer(graph, FlowTransforms.noop(), index);
             this.name = "eth" + index;
         }
 
@@ -297,7 +297,7 @@ public abstract class SimAbstractMachine implements SimMachine {
         }
 
         @Override
-        protected Inlet getInlet() {
+        public Inlet getInlet() {
             return rx.getInput();
         }
 

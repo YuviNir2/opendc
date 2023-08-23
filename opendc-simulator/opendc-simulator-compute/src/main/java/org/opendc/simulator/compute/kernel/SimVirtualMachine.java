@@ -47,4 +47,10 @@ public interface SimVirtualMachine extends SimMachine {
      * Return the CPU capacity of the VM in MHz.
      */
     double getCpuCapacity();
+
+    double getNetworkUsage();
+
+    double getNetworkDemand();
+
+    double getNetworkCapacity();
 }

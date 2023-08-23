@@ -52,3 +52,18 @@ public data class VirtualMachine(
     val trace: SimTrace,
     val interferenceProfile: VmInterferenceProfile?
 )
+
+public data class ExtendedVirtualMachine(
+    val uid: UUID,
+    val name: String,
+    val cpuCount: Int,
+    val cpuCapacity: Double,
+    val memCapacity: Long,
+    val nicCount: Int,
+    val bandwidthCapacity: Double,
+    val totalLoad: Double,
+    val startTime: Instant,
+    val stopTime: Instant,
+    val trace: SimTrace,
+    val interferenceProfile: VmInterferenceProfile?
+)

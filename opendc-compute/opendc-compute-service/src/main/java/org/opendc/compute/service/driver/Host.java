@@ -27,8 +27,10 @@ import java.util.Set;
 import java.util.UUID;
 import org.opendc.compute.api.Server;
 import org.opendc.compute.service.driver.telemetry.GuestCpuStats;
+import org.opendc.compute.service.driver.telemetry.GuestNicStats;
 import org.opendc.compute.service.driver.telemetry.GuestSystemStats;
 import org.opendc.compute.service.driver.telemetry.HostCpuStats;
+import org.opendc.compute.service.driver.telemetry.HostNicStats;
 import org.opendc.compute.service.driver.telemetry.HostSystemStats;
 
 /**
@@ -134,4 +136,9 @@ public interface Host {
      * @throws IllegalArgumentException if the server is not present on the host.
      */
     GuestCpuStats getCpuStats(Server server);
+
+
+    HostNicStats getNicStats();
+
+    GuestNicStats getNicStats(Server server);
 }

@@ -36,4 +36,6 @@ public interface Flavor : Resource {
      * The amount of RAM available to the server (in MB).
      */
     public val memorySize: Long
+
+    public val nicCount: Int
 }
