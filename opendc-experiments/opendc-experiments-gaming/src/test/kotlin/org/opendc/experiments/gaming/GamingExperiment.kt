@@ -75,7 +75,7 @@ class GamingExperiment {
     @Test
     fun runExperiment() = runSimulation {
         val seed = 1L
-        val configName = "add_net_usage_linear"
+        val configName = "gamegenre_tbs"
         getExperimentConfiguration(configName)
         val topology = createTopology(envFileName, getCpuPowerModel(cpuPowerModel, cpuMaxPower, cpuIdlePower), getNetworkPowerModel(nicPowerModel, nicMaxPower, nicIdlePower))
         val workload = getWorkload(traceFileName)
