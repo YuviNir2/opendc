@@ -83,7 +83,7 @@ fun getUsage(gameType: GameType, numPlayers: Int, singlePlayerUsage: Double): Do
     return when (gameType) {
         GameType.TBS -> singlePlayerUsage * numPlayers
         GameType.FPS -> singlePlayerUsage.pow(numPlayers.toDouble())
-        GameType.MMORPG -> singlePlayerUsage * numPlayers + numPlayers.toDouble().pow(2.0)
+        GameType.MMORPG -> singlePlayerUsage * (numPlayers + numPlayers.toDouble().pow(2.0))
     }
 }
 
