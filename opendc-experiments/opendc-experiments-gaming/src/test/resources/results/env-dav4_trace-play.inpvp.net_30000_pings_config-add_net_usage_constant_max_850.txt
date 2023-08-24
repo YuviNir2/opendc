@@ -1,0 +1,2 @@
+Number of VMs successfully deployed;idleTime;activeTime;stealTime;lostTime;cpuDemand;cpuLimit;energyUsage(Total Energy Consumption);powerUsage;cpuUtilization
+129;612412374;67500;0;0;5.641841645E8;5.104E12;5.474356762923207E9;1.8247857845307563E7;7.052302056250214
