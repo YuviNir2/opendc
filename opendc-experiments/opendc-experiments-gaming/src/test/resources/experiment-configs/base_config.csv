@@ -1,0 +1,2 @@
+envFileName,traceFileName,singlePlayerCpuUsage,maxCoresPerVm,singlePlayerNetworkUsage,maxNicsPerVm,maxNumPlayersPerVm,vmMemoryCapacity,cpuMaxPower,cpuIdlePower,cpuPowerModel,nicMaxPower,nicIdlePower,nicPowerModel,gameType,dataRate
+topology,simple_trace,100,1,5,1,50,10000,350,200,linear,40,10,linear,tbs,linear
