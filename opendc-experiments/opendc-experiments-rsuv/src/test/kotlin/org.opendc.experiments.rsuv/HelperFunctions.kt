@@ -29,7 +29,7 @@ var nicPowerModel = ""
 var gameType: GameType = GameType.TBS
 var dataRateLevel: DataRateLevel = DataRateLevel.Linear
 
-fun getExperimentGlobalVariables(fileName: String) {
+fun getExperimentConfiguration(fileName: String) {
     val configFile = baseDir.resolve("experiment-configs/${fileName}.csv")
     val parser = factory.createParser(configFile)
     parser.schema = configSchema

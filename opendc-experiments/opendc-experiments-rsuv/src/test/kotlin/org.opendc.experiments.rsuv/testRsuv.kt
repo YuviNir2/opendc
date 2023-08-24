@@ -75,8 +75,8 @@ class MyTest {
     @Test
     fun testSmall() = runSimulation {
         val seed = 1L
-        val configName = "datarate_linear"
-        getExperimentGlobalVariables(configName)
+        val configName = "add_net_usage_linear"
+        getExperimentConfiguration(configName)
         val topology = createTopology(envFileName, getCpuPowerModel(cpuPowerModel, cpuMaxPower, cpuIdlePower), getNetworkPowerModel(nicPowerModel, nicMaxPower, nicIdlePower))
         val workload = getWorkload(traceFileName)
         val monitor = monitor
@@ -92,7 +92,7 @@ class MyTest {
             service.replayExtended(timeSource, workload, seed)
         }
 
-        val resultFileName = "env-${envFileName}_trace-${traceFileName}_config-${configName}_${Random.nextInt(100)}"
+        val resultFileName = "env-${envFileName}_trace-${traceFileName}_config-${configName}_${Random.nextInt(1000)}"
         val file = baseDir.resolve("results/${resultFileName}.txt")
         file.createNewFile()
         file.bufferedWriter().use { writer ->
@@ -100,6 +100,7 @@ class MyTest {
             writer.write("${monitor.attemptsSuccess};${monitor.idleTime};${monitor.activeTime};${monitor.stealTime};${monitor.lostTime};${monitor.cpuDemand};${monitor.cpuLimit};${monitor.totalEnergyUsage};${monitor.powerUsage};${monitor.cpuUtilization}\n")
         }
 
+        println("Result file name: $resultFileName")
         println(
             "\nScheduler: \n" +
                 "Number of VMs successfully deployed=${monitor.attemptsSuccess}\n" +
